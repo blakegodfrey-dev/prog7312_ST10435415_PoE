@@ -427,3 +427,17 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Smart-X React client
+src/SmartX.Client/node_modules/
+src/SmartX.Client/dist/
+src/SmartX.Client/.env
+src/SmartX.Client/.env.local
+src/SmartX.Client/.env.*.local
+
+# Smart-X local uploads
+uploads/
+
+# Local configuration / secrets
+*.user
+*.suo
