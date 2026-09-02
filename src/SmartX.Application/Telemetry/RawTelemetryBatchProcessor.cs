@@ -1,10 +1,11 @@
+using SmartX.Domain.Entities;
 using SmartX.Domain.Telemetry;
 
 namespace SmartX.Application.Telemetry;
 
 /// <summary>
-/// Inspects variable-length sequential telemetry batches represented
-/// by a jagged array.
+/// Inspects and processes variable-length sequential telemetry batches
+/// represented by a jagged array.
 /// </summary>
 public static class RawTelemetryBatchProcessor
 {
@@ -62,5 +63,56 @@ public static class RawTelemetryBatchProcessor
             packetCount,
             emptyBatchCount,
             largestBatchSize);
+    }
+
+    /// <summary>
+    /// Moves packets belonging to the selected sensor and using its
+    /// configured telemetry type into a dynamic List collection.
+    /// </summary>
+    public static TelemetryBatchProcessingResult<T> ProcessForSensor<T>(
+        Sensor sensor,
+        TelemetryPacket<T>[][] rawBatches)
+        where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(sensor);
+
+        var inspection = Inspect(rawBatches);
+
+        // The List is preallocated to the largest possible accepted size.
+        // Invalid packets will leave some capacity unused.
+        var acceptedPackets =
+            new List<TelemetryPacket<T>>(inspection.PacketCount);
+
+        var rejectedPacketCount = 0;
+
+        for (var batchIndex = 0;
+             batchIndex < rawBatches.Length;
+             batchIndex++)
+        {
+            var batch = rawBatches[batchIndex];
+
+            for (var packetIndex = 0;
+                 packetIndex < batch.Length;
+                 packetIndex++)
+            {
+                var packet = batch[packetIndex];
+
+                if (TelemetryPacketTypeGuard.IsCompatible(
+                        sensor,
+                        packet))
+                {
+                    acceptedPackets.Add(packet);
+                }
+                else
+                {
+                    rejectedPacketCount++;
+                }
+            }
+        }
+
+        return new TelemetryBatchProcessingResult<T>(
+            acceptedPackets,
+            inspection.PacketCount,
+            rejectedPacketCount);
     }
 }
