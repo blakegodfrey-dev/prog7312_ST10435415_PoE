@@ -16,6 +16,9 @@ public sealed class SmartXDbContext : DbContext
 
     public DbSet<Sensor> Sensors => Set<Sensor>();
 
+    public DbSet<SensorAttachmentRecord> SensorAttachments =>
+    Set<SensorAttachmentRecord>();
+
     public DbSet<TelemetryRecord> TelemetryRecords =>
         Set<TelemetryRecord>();
 

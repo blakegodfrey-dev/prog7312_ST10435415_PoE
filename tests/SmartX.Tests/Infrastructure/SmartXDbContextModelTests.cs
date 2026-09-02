@@ -15,6 +15,7 @@ public sealed class SmartXDbContextModelTests
         Assert.NotNull(context.Model.FindEntityType(typeof(DeploymentNode)));
         Assert.NotNull(context.Model.FindEntityType(typeof(Sensor)));
         Assert.NotNull(context.Model.FindEntityType(typeof(TelemetryRecord)));
+        Assert.NotNull(context.Model.FindEntityType(typeof(SensorAttachmentRecord)));
     }
 
     [Fact]
@@ -31,6 +32,9 @@ public sealed class SmartXDbContextModelTests
         Assert.Equal(
             "TelemetryRecords",
             GetEntityType<TelemetryRecord>(context).GetTableName());
+        Assert.Equal(
+            "SensorAttachments",
+            GetEntityType<SensorAttachmentRecord>(context).GetTableName());
     }
 
     [Fact]
