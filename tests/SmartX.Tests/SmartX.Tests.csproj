@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SmartX.Domain\SmartX.Domain.csproj" />
     <ProjectReference Include="..\..\src\SmartX.Application\SmartX.Application.csproj" />
+    <ProjectReference Include="..\..\src\SmartX.Infrastructure\SmartX.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
