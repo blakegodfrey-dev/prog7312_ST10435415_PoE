@@ -1,4 +1,5 @@
 using SmartX.Infrastructure;
+using SmartX.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    await app.Services.InitialiseSmartXDatabaseAsync();
     app.MapOpenApi();
 }
 

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartX.Infrastructure.Persistence;
+using SmartX.Infrastructure.Persistence.Seeding;
 
 namespace SmartX.Infrastructure;
 
@@ -25,6 +26,8 @@ public static class DependencyInjection
 
         services.AddDbContext<SmartXDbContext>(options =>
             options.UseSqlServer(connectionString));
+
+        services.AddScoped<SmartXDatabaseSeeder>();
 
         return services;
     }
