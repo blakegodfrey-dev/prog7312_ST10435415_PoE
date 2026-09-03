@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SmartX.Api.Configuration;
 using SmartX.Api.Contracts.Attachments;
 using SmartX.Application.Attachments;
 using SmartX.Domain.Enums;
@@ -30,7 +31,7 @@ public sealed class SensorAttachmentsController : ControllerBase
 
     [HttpPost]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(MaximumFileSizeBytes + 1024 * 1024)]
+    [RequestSizeLimit(ApiRequestLimits.MaximumRequestBodySizeBytes)]
     public async Task<ActionResult<SensorAttachmentResponse>> Upload(
         Guid sensorId,
         [FromForm] UploadSensorAttachmentRequest request,

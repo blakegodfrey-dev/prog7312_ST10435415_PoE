@@ -1,9 +1,47 @@
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
+using SmartX.Api.Configuration;
+using SmartX.Api.Filters;
 using SmartX.Infrastructure;
 using SmartX.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize =
+        ApiRequestLimits.MaximumRequestBodySizeBytes;
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit =
+        ApiRequestLimits.MaximumRequestBodySizeBytes;
+});
+
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+        ApiProblemDetailsDefaults.Apply(
+            context.ProblemDetails,
+            context.HttpContext);
+});
+
+builder.Services
+    .AddControllers(options =>
+    {
+        options.Filters.Add<ProblemDetailsEnrichmentFilter>();
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+            new BadRequestObjectResult(
+                new ValidationProblemDetails(context.ModelState)
+                {
+                    Title = "Request validation failed.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+    });
 builder.Services.AddOpenApi();
 builder.Services.AddInfrastructure(
     builder.Configuration,
@@ -21,6 +59,12 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+app.UseExceptionHandler(new ExceptionHandlerOptions
+{
+    StatusCodeSelector = ApiExceptionStatusCodeSelector.Select
+});
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
