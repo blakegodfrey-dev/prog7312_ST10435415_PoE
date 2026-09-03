@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartX.Api.Contracts.Telemetry;
 using SmartX.Application.Telemetry;
 using SmartX.Domain.Entities;
+using SmartX.Domain.Enums;
 using SmartX.Domain.Telemetry;
 using SmartX.Infrastructure.Persistence;
 using SmartX.Infrastructure.Persistence.Entities;
@@ -14,6 +15,8 @@ namespace SmartX.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class TelemetryController : ControllerBase
 {
+    public const int MaximumBatchSize = 500;
+
     private const int MaximumPageSize = 500;
 
     private static readonly Expression<
@@ -80,6 +83,167 @@ public sealed class TelemetryController : ControllerBase
                 isValid,
                 message),
             cancellationToken);
+    }
+
+    [HttpPost("bulk")]
+    public async Task<ActionResult<BulkTelemetryIngestionResponse>> IngestBulk(
+        BulkTelemetryIngestionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Readings is null || request.Readings.Count == 0)
+        {
+            return ValidationError(
+                nameof(request.Readings),
+                "At least one telemetry reading is required.");
+        }
+
+        if (request.Readings.Count > MaximumBatchSize)
+        {
+            return ValidationError(
+                nameof(request.Readings),
+                $"A telemetry batch cannot contain more than " +
+                $"{MaximumBatchSize} readings.");
+        }
+
+        for (var index = 0; index < request.Readings.Count; index++)
+        {
+            var reading = request.Readings[index];
+
+            if (reading is null)
+            {
+                return ValidationError(
+                    $"readings[{index}]",
+                    "A telemetry reading cannot be null.");
+            }
+
+            if (reading.Id == Guid.Empty)
+            {
+                return ValidationError(
+                    $"readings[{index}].id",
+                    "A telemetry reading must have a valid identifier.");
+            }
+
+            if (reading.SensorId == Guid.Empty)
+            {
+                return ValidationError(
+                    $"readings[{index}].sensorId",
+                    "A telemetry reading must identify its sensor.");
+            }
+
+            if (reading.RecordedAtUtc == default)
+            {
+                return ValidationError(
+                    $"readings[{index}].recordedAtUtc",
+                    "A recorded timestamp is required.");
+            }
+
+            if (reading.ReceivedAtUtc.HasValue &&
+                reading.ReceivedAtUtc.Value < reading.RecordedAtUtc)
+            {
+                return ValidationError(
+                    $"readings[{index}].receivedAtUtc",
+                    "The received timestamp cannot precede the recorded timestamp.");
+            }
+        }
+
+        var readings = request.Readings
+            .Select(reading => reading!)
+            .ToList();
+
+        var duplicateId = readings
+            .GroupBy(reading => reading.Id)
+            .FirstOrDefault(group => group.Count() > 1)
+            ?.Key;
+
+        if (duplicateId.HasValue)
+        {
+            return ConflictError(
+                $"Telemetry identifier '{duplicateId.Value}' occurs more " +
+                "than once in the batch.");
+        }
+
+        var telemetryIds = readings
+            .Select(reading => reading.Id)
+            .ToList();
+
+        var existingId = await _context.TelemetryRecords
+            .AsNoTracking()
+            .Where(record => telemetryIds.Contains(record.Id))
+            .Select(record => (Guid?)record.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existingId.HasValue)
+        {
+            return ConflictError(
+                $"Telemetry identifier '{existingId.Value}' already exists.");
+        }
+
+        var sensorIds = readings
+            .Select(reading => reading.SensorId)
+            .Distinct()
+            .ToList();
+
+        var sensors = await _context.Sensors
+            .AsNoTracking()
+            .Where(sensor => sensorIds.Contains(sensor.Id))
+            .ToDictionaryAsync(sensor => sensor.Id, cancellationToken);
+
+        var missingSensorId = sensorIds
+            .FirstOrDefault(sensorId => !sensors.ContainsKey(sensorId));
+
+        if (missingSensorId != Guid.Empty)
+        {
+            return NotFoundError(
+                $"No sensor with identifier '{missingSensorId}' exists.");
+        }
+
+        var records = new List<TelemetryRecord>(readings.Count);
+
+        for (var index = 0; index < readings.Count; index++)
+        {
+            var reading = readings[index];
+            var sensor = sensors[reading.SensorId];
+
+            var validationError = TryCreateBulkRecord(
+                reading,
+                sensor,
+                out var record);
+
+            if (validationError is not null)
+            {
+                return ValidationError(
+                    $"readings[{index}]",
+                    validationError);
+            }
+
+            records.Add(record!);
+        }
+
+        _context.TelemetryRecords.AddRange(records);
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return ConflictError(
+                "The telemetry batch conflicts with existing readings.");
+        }
+
+        var responses = records
+            .Select(ToResponse)
+            .ToList();
+        var validCount = records.Count(record => record.IsValid);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new BulkTelemetryIngestionResponse(
+                readings.Count,
+                records.Count,
+                validCount,
+                records.Count - validCount,
+                responses));
     }
 
     [HttpGet("{id:guid}")]
@@ -313,6 +477,116 @@ public sealed class TelemetryController : ControllerBase
         _ = value;
 
         return ValueValidationResult.Valid;
+    }
+
+    private static string? TryCreateBulkRecord(
+        BulkTelemetryItemRequest reading,
+        Sensor sensor,
+        out TelemetryRecord? record)
+    {
+        record = null;
+
+        if (reading.ValueKind != sensor.ValueKind)
+        {
+            return $"Sensor '{sensor.FriendlyName}' expects " +
+                   $"{sensor.ValueKind} telemetry, but received " +
+                   $"{reading.ValueKind}.";
+        }
+
+        try
+        {
+            switch (reading.ValueKind)
+            {
+                case TelemetryValueKind.Float:
+                    {
+                        if (!reading.FloatValue.HasValue ||
+                            reading.IntegerValue.HasValue ||
+                            reading.BooleanValue.HasValue)
+                        {
+                            return "Float telemetry requires only FloatValue.";
+                        }
+
+                        var packet = new TelemetryPacket<float>(
+                            reading.Id,
+                            reading.SensorId,
+                            reading.FloatValue.Value,
+                            reading.RecordedAtUtc,
+                            reading.ReceivedAtUtc);
+                        TelemetryPacketTypeGuard.EnsureCompatible(sensor, packet);
+                        var validation = ValidateNumericValue(
+                            sensor,
+                            reading.FloatValue.Value);
+                        record = TelemetryRecord.FromPacket(
+                            packet,
+                            validation.IsValid,
+                            validation.Message);
+                        return null;
+                    }
+
+                case TelemetryValueKind.Integer:
+                    {
+                        if (!reading.IntegerValue.HasValue ||
+                            reading.FloatValue.HasValue ||
+                            reading.BooleanValue.HasValue)
+                        {
+                            return "Integer telemetry requires only IntegerValue.";
+                        }
+
+                        var packet = new TelemetryPacket<int>(
+                            reading.Id,
+                            reading.SensorId,
+                            reading.IntegerValue.Value,
+                            reading.RecordedAtUtc,
+                            reading.ReceivedAtUtc);
+                        TelemetryPacketTypeGuard.EnsureCompatible(sensor, packet);
+                        var validation = ValidateNumericValue(
+                            sensor,
+                            reading.IntegerValue.Value);
+                        record = TelemetryRecord.FromPacket(
+                            packet,
+                            validation.IsValid,
+                            validation.Message);
+                        return null;
+                    }
+
+                case TelemetryValueKind.Boolean:
+                    {
+                        if (!reading.BooleanValue.HasValue ||
+                            reading.FloatValue.HasValue ||
+                            reading.IntegerValue.HasValue)
+                        {
+                            return "Boolean telemetry requires only BooleanValue.";
+                        }
+
+                        var packet = new TelemetryPacket<bool>(
+                            reading.Id,
+                            reading.SensorId,
+                            reading.BooleanValue.Value,
+                            reading.RecordedAtUtc,
+                            reading.ReceivedAtUtc);
+                        TelemetryPacketTypeGuard.EnsureCompatible(sensor, packet);
+                        var validation = ValidateBooleanValue(
+                            sensor,
+                            reading.BooleanValue.Value);
+                        record = TelemetryRecord.FromPacket(
+                            packet,
+                            validation.IsValid,
+                            validation.Message);
+                        return null;
+                    }
+
+                default:
+                    return $"Telemetry kind '{reading.ValueKind}' is not supported.";
+            }
+        }
+        catch (ArgumentException exception)
+        {
+            return exception.Message;
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception.Message;
+        }
     }
 
     private static TelemetryReadingResponse ToResponse(
