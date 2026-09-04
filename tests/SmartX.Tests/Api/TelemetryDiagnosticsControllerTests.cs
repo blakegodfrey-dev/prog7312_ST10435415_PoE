@@ -15,6 +15,129 @@ public sealed class TelemetryDiagnosticsControllerTests
     private static readonly DateTimeOffset RecordedAtUtc =
         new(2026, 9, 3, 12, 0, 0, TimeSpan.Zero);
 
+    private static readonly DateTimeOffset EvaluationUtc =
+        RecordedAtUtc.AddMinutes(30);
+
+    [Fact]
+    public async Task GetHealthSummary_ReturnsFleetHealthCounts()
+    {
+        await using var context = CreateContext();
+        var node = CreateNode();
+
+        var connectedSensor = CreateSensor(
+            node.Id,
+            1,
+            TelemetryValueKind.Float);
+        var staleSensor = CreateSensor(
+            node.Id,
+            2,
+            TelemetryValueKind.Float);
+        var disconnectedSensor = CreateSensor(
+            node.Id,
+            3,
+            TelemetryValueKind.Float);
+        var noDataSensor = CreateSensor(
+            node.Id,
+            4,
+            TelemetryValueKind.Float);
+        var invalidConnectedSensor = CreateSensor(
+            node.Id,
+            5,
+            TelemetryValueKind.Float);
+
+        context.AddRange(
+            node,
+            connectedSensor,
+            staleSensor,
+            disconnectedSensor,
+            noDataSensor,
+            invalidConnectedSensor);
+
+        context.TelemetryRecords.AddRange(
+            CreateFloatRecord(connectedSensor.Id, 20, 28),
+            CreateFloatRecord(staleSensor.Id, 20, 20),
+            CreateFloatRecord(disconnectedSensor.Id, 20, 0),
+            CreateFloatRecord(
+                invalidConnectedSensor.Id,
+                35,
+                29,
+                isValid: false));
+
+        await context.SaveChangesAsync();
+
+        var controller = CreateController(context);
+
+        var action = await controller.GetHealthSummary(
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(action.Result);
+        var summary = Assert.IsType<SensorHealthSummaryResponse>(
+            ok.Value);
+
+        Assert.Equal(5, summary.TotalSensorCount);
+        Assert.Equal(2, summary.ConnectedSensorCount);
+        Assert.Equal(1, summary.StaleSensorCount);
+        Assert.Equal(1, summary.DisconnectedSensorCount);
+        Assert.Equal(1, summary.NoDataSensorCount);
+        Assert.Equal(1, summary.InvalidLatestReadingCount);
+        Assert.Equal(EvaluationUtc, summary.EvaluatedAtUtc);
+        Assert.Equal(5, summary.ConnectedThresholdMinutes);
+        Assert.Equal(15, summary.DisconnectedThresholdMinutes);
+    }
+
+    [Fact]
+    public async Task GetHealthSummary_ReturnsZeroCountsWhenNoSensorsExist()
+    {
+        await using var context = CreateContext();
+        var controller = CreateController(context);
+
+        var action = await controller.GetHealthSummary(
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(action.Result);
+        var summary = Assert.IsType<SensorHealthSummaryResponse>(
+            ok.Value);
+
+        Assert.Equal(0, summary.TotalSensorCount);
+        Assert.Equal(0, summary.ConnectedSensorCount);
+        Assert.Equal(0, summary.StaleSensorCount);
+        Assert.Equal(0, summary.DisconnectedSensorCount);
+        Assert.Equal(0, summary.NoDataSensorCount);
+        Assert.Equal(0, summary.InvalidLatestReadingCount);
+        Assert.Equal(EvaluationUtc, summary.EvaluatedAtUtc);
+    }
+
+    [Fact]
+    public async Task GetHealthSummary_UsesLatestReadingValidity()
+    {
+        await using var context = CreateContext();
+        var node = CreateNode();
+        var sensor = CreateSensor(
+            node.Id,
+            1,
+            TelemetryValueKind.Float);
+
+        context.AddRange(node, sensor);
+        context.TelemetryRecords.AddRange(
+            CreateFloatRecord(sensor.Id, 35, 10, isValid: false),
+            CreateFloatRecord(sensor.Id, 22, 29));
+
+        await context.SaveChangesAsync();
+
+        var controller = CreateController(context);
+
+        var action = await controller.GetHealthSummary(
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(action.Result);
+        var summary = Assert.IsType<SensorHealthSummaryResponse>(
+            ok.Value);
+
+        Assert.Equal(1, summary.TotalSensorCount);
+        Assert.Equal(1, summary.ConnectedSensorCount);
+        Assert.Equal(0, summary.InvalidLatestReadingCount);
+    }
+
     [Fact]
     public async Task GetSummary_ReturnsValidationAndTypeCounts()
     {
@@ -225,6 +348,14 @@ public sealed class TelemetryDiagnosticsControllerTests
         Assert.IsType<BadRequestObjectResult>(action.Result);
     }
 
+    private static TelemetryDiagnosticsController CreateController(
+        SmartXDbContext context)
+    {
+        return new TelemetryDiagnosticsController(
+            context,
+            new FixedTimeProvider(EvaluationUtc));
+    }
+
     private static SmartXDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<SmartXDbContext>()
@@ -299,6 +430,21 @@ public sealed class TelemetryDiagnosticsControllerTests
             packet,
             isValid,
             isValid ? null : "Integer reading is outside the expected range.");
+    }
+
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        private readonly DateTimeOffset _utcNow;
+
+        public FixedTimeProvider(DateTimeOffset utcNow)
+        {
+            _utcNow = utcNow;
+        }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            return _utcNow;
+        }
     }
 
     private static TelemetryRecord CreateBooleanRecord(

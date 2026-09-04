@@ -4,6 +4,7 @@ using SmartX.Api.Contracts.Telemetry.Diagnostics;
 using SmartX.Domain.Enums;
 using SmartX.Infrastructure.Persistence;
 using SmartX.Infrastructure.Persistence.Entities;
+using SmartX.Application.Telemetry;
 
 namespace SmartX.Api.Controllers;
 
@@ -14,10 +15,106 @@ public sealed class TelemetryDiagnosticsController : ControllerBase
     private const int MaximumPageSize = 500;
 
     private readonly SmartXDbContext _context;
+    private readonly TimeProvider _timeProvider;
 
-    public TelemetryDiagnosticsController(SmartXDbContext context)
+    public TelemetryDiagnosticsController(
+        SmartXDbContext context,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    [HttpGet("health-summary")]
+    public async Task<ActionResult<SensorHealthSummaryResponse>>
+        GetHealthSummary(
+        CancellationToken cancellationToken = default)
+    {
+        var sensorIds = await _context.Sensors
+            .AsNoTracking()
+            .Select(sensor => sensor.Id)
+            .ToListAsync(cancellationToken);
+
+        var latestReadings = await _context.TelemetryRecords
+            .AsNoTracking()
+            .GroupBy(record => record.SensorId)
+            .Select(group => group
+                .OrderByDescending(record => record.RecordedAtUtc)
+                .ThenByDescending(record => record.Id)
+                .Select(record => new
+                {
+                    record.SensorId,
+                    record.RecordedAtUtc,
+                    record.IsValid
+                })
+                .First())
+            .ToListAsync(cancellationToken);
+
+        var latestReadingBySensorId = latestReadings.ToDictionary(
+            reading => reading.SensorId);
+
+        var evaluatedAtUtc = _timeProvider.GetUtcNow();
+        var connectedSensorCount = 0;
+        var staleSensorCount = 0;
+        var disconnectedSensorCount = 0;
+        var noDataSensorCount = 0;
+        var invalidLatestReadingCount = 0;
+
+        foreach (var sensorId in sensorIds)
+        {
+            if (!latestReadingBySensorId.TryGetValue(
+                    sensorId,
+                    out var latestReading))
+            {
+                noDataSensorCount++;
+                continue;
+            }
+
+            if (!latestReading.IsValid)
+            {
+                invalidLatestReadingCount++;
+            }
+
+            var status = SensorConnectionStatusEvaluator.Evaluate(
+                latestReading.RecordedAtUtc,
+                evaluatedAtUtc);
+
+            switch (status)
+            {
+                case SensorConnectionStatus.Connected:
+                    connectedSensorCount++;
+                    break;
+
+                case SensorConnectionStatus.Stale:
+                    staleSensorCount++;
+                    break;
+
+                case SensorConnectionStatus.Disconnected:
+                    disconnectedSensorCount++;
+                    break;
+
+                case SensorConnectionStatus.NoData:
+                    noDataSensorCount++;
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported sensor connection status '{status}'.");
+            }
+        }
+
+        return Ok(new SensorHealthSummaryResponse(
+            sensorIds.Count,
+            connectedSensorCount,
+            staleSensorCount,
+            disconnectedSensorCount,
+            noDataSensorCount,
+            invalidLatestReadingCount,
+            evaluatedAtUtc,
+            (int)SensorConnectionStatusEvaluator
+                .ConnectedThreshold.TotalMinutes,
+            (int)SensorConnectionStatusEvaluator
+                .DisconnectedThreshold.TotalMinutes));
     }
 
     [HttpGet("summary")]
