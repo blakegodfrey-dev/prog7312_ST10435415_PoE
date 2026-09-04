@@ -2,6 +2,7 @@
   getSensorCategoryLabel,
   getTelemetryValueKindLabel,
 } from "../../api/sensorOptions";
+import { SensorAttachmentsPanel } from "./SensorAttachmentsPanel";
 import { TelemetryHistoryPanel } from "./TelemetryHistoryPanel";
 import { useSensorDetail } from "./useSensorDetail";
 
@@ -124,6 +125,7 @@ export function SensorDetail({ sensorId, onBack }) {
       </dl>
 
       <TelemetryHistoryPanel sensorId={sensor.id} />
+      <SensorAttachmentsPanel sensorId={sensor.id} />
     </section>
   );
 }
