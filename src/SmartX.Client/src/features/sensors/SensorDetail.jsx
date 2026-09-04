@@ -2,6 +2,7 @@
   getSensorCategoryLabel,
   getTelemetryValueKindLabel,
 } from "../../api/sensorOptions";
+import { TelemetryHistoryPanel } from "./TelemetryHistoryPanel";
 import { useSensorDetail } from "./useSensorDetail";
 
 function formatExpectedRange(sensor) {
@@ -121,6 +122,8 @@ export function SensorDetail({ sensorId, onBack }) {
           <dd className="monospace">{sensor.id}</dd>
         </div>
       </dl>
+
+      <TelemetryHistoryPanel sensorId={sensor.id} />
     </section>
   );
 }
