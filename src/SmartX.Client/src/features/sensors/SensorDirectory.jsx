@@ -5,6 +5,7 @@ import {
   getTelemetryValueKindLabel,
 } from "../../api/sensorOptions";
 import { SensorDetail } from "./SensorDetail";
+import { SensorRegistration } from "./SensorRegistration";
 import { useSensorDirectory } from "./useSensorDirectory";
 
 export function SensorDirectory({ onBack }) {
@@ -12,6 +13,7 @@ export function SensorDirectory({ onBack }) {
   const [category, setCategory] = useState("");
   const [deploymentNodeId, setDeploymentNodeId] = useState("");
   const [selectedSensorId, setSelectedSensorId] = useState(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const {
     sensors,
@@ -24,6 +26,22 @@ export function SensorDirectory({ onBack }) {
     category,
     deploymentNodeId,
   });
+
+  if (isRegistering) {
+    return (
+      <main className="app-shell sensor-workspace">
+        <SensorRegistration
+          locations={locations}
+          onCancel={() => setIsRegistering(false)}
+          onRegistered={(sensor) => {
+            setIsRegistering(false);
+            refresh();
+            setSelectedSensorId(sensor.id);
+          }}
+        />
+      </main>
+    );
+  }
 
   if (selectedSensorId) {
     return (
@@ -107,7 +125,11 @@ export function SensorDirectory({ onBack }) {
           )}
         </div>
 
-        <button type="button" className="primary-button">
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => setIsRegistering(true)}
+        >
           Register sensor
         </button>
       </div>

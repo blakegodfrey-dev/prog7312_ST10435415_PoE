@@ -415,3 +415,149 @@ button:focus-visible {
     grid-column: auto;
   }
 }
+
+.registration-panel {
+  border: 1px solid #d9dde3;
+  border-radius: 18px;
+  padding: 28px;
+  background: #ffffff;
+}
+
+.registration-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.registration-header h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.sensor-form {
+  display: grid;
+  gap: 24px;
+}
+
+.form-section {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.75fr) minmax(0, 2fr);
+  gap: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e1e5e8;
+}
+
+.form-section-heading h3 {
+  margin: 0 0 6px;
+  color: #182126;
+}
+
+.form-section-heading p,
+.field-help {
+  color: #687278;
+  font-size: 0.85rem;
+}
+
+.form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.form-fields label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  color: #263238;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.form-fields input,
+.form-fields select {
+  width: 100%;
+  min-height: 46px;
+  box-sizing: border-box;
+  border: 1px solid #bcc5ca;
+  border-radius: 9px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #182126;
+  font: inherit;
+}
+
+.form-fields input[aria-invalid="true"],
+.form-fields select[aria-invalid="true"] {
+  border-color: #b3261e;
+}
+
+.form-fields input:disabled {
+  background: #eceff1;
+  color: #777;
+}
+
+.full-field {
+  grid-column: 1 / -1;
+}
+
+.field-error {
+  color: #b3261e;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.form-error-summary {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 20px;
+  border: 1px solid #e3a7a7;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff7f7;
+  color: #7f1d1d;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.submit-button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 20px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@media (max-width: 760px) {
+  .registration-header,
+  .form-section {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-header {
+    flex-direction: column;
+  }
+
+  .form-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .full-field {
+    grid-column: auto;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+}
