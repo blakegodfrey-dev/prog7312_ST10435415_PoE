@@ -1,4 +1,5 @@
-﻿import { useState } from "react";
+﻿import { SensorHealthOverview } from "./SensorHealthOverview";
+import { useState } from "react";
 import {
   SENSOR_CATEGORIES,
   getSensorCategoryLabel,
@@ -78,6 +79,8 @@ export function SensorDirectory({ onBack }) {
           Back to startup
         </button>
       </header>
+
+      <SensorHealthOverview />
 
       <section className="filter-panel" aria-label="Sensor filters">
         <label>

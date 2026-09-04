@@ -55,6 +55,12 @@ function buildHistoryQuery({
 }
 
 export const telemetryApi = {
+  getHealthSummary(options = {}) {
+    return apiClient.get(
+      `${TELEMETRY_ENDPOINT}/diagnostics/health-summary`,
+      options,
+    );
+  },
   getHistory(sensorId, filters = {}, options = {}) {
     const id = requireSensorId(sensorId);
     const query = buildHistoryQuery(filters);

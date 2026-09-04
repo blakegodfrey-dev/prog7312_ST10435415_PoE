@@ -986,3 +986,172 @@ button:focus-visible {
   color: #216b36;
   font-weight: 700;
 }
+
+.health-overview {
+  margin-bottom: 32px;
+  border: 1px solid #d9dde3;
+  border-radius: 18px;
+  padding: 24px;
+  background: #f7f9f8;
+}
+
+.health-overview-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.health-overview-heading h2 {
+  margin: 4px 0 6px;
+}
+
+.health-overview-heading p {
+  margin: 0;
+  color: #5f696e;
+}
+
+.health-overview-heading button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.health-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.health-card {
+  min-width: 0;
+  border: 1px solid #d9dde3;
+  border-top-width: 4px;
+  border-radius: 13px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.health-card-connected {
+  border-top-color: #2e7d32;
+}
+
+.health-card-stale {
+  border-top-color: #b26a00;
+}
+
+.health-card-disconnected,
+.health-card-invalid {
+  border-top-color: #b3261e;
+}
+
+.health-card-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #566268;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.health-card-indicator {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.health-card-connected .health-card-label {
+  color: #216b36;
+}
+
+.health-card-stale .health-card-label {
+  color: #8a5a00;
+}
+
+.health-card-disconnected .health-card-label,
+.health-card-invalid .health-card-label {
+  color: #a42620;
+}
+
+.health-count {
+  display: block;
+  margin-top: 14px;
+  color: #182126;
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.health-card h3 {
+  margin: 8px 0 5px;
+  font-size: 1rem;
+}
+
+.health-card p {
+  margin: 0;
+  color: #687278;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.health-state {
+  display: grid;
+  gap: 5px;
+  border: 1px dashed #bdc6ca;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.health-state span,
+.health-state small {
+  color: #687278;
+}
+
+.health-state-error {
+  border-color: #e3a7a7;
+  background: #fff7f7;
+}
+
+.health-state .text-button {
+  justify-self: center;
+}
+
+.health-overview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 16px;
+  color: #566268;
+  font-size: 0.82rem;
+}
+
+.health-overview-meta p,
+.health-overlap-note {
+  margin: 0;
+}
+
+.health-overlap-note {
+  margin-top: 9px;
+  color: #687278;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 900px) {
+  .health-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .health-overview-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .health-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
