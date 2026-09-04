@@ -26,7 +26,11 @@ function formatExpectedRange(sensor) {
   return `${minimum}${unit} to ${maximum}${unit}`;
 }
 
-export function SensorDetail({ sensorId, onBack }) {
+export function SensorDetail({
+  sensorId,
+  successMessage,
+  onBack,
+}) {
   const {
     sensor,
     isLoading,
@@ -77,6 +81,12 @@ export function SensorDetail({ sensorId, onBack }) {
           {getTelemetryValueKindLabel(sensor.valueKind)}
         </span>
       </div>
+
+      {successMessage && (
+        <div className="success-banner" role="status">
+          {successMessage}
+        </div>
+      )}
 
       <header className="detail-header">
         <p className="sensor-category">

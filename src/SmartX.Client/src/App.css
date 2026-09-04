@@ -976,3 +976,13 @@ button:focus-visible {
     justify-self: stretch;
   }
 }
+
+.success-banner {
+  margin-bottom: 20px;
+  border: 1px solid #a8d5b3;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #e6f4ea;
+  color: #216b36;
+  font-weight: 700;
+}

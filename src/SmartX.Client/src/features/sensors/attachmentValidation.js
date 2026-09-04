@@ -46,4 +46,3 @@ export function validateAttachment(file, categoryValue) {
 
   return null;
 }
-

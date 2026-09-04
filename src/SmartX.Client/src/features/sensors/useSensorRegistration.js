@@ -5,6 +5,21 @@ import {
   validateSensorForm,
 } from "./sensorRegistrationModel";
 
+function normaliseValidationErrors(errors) {
+  if (!errors || typeof errors !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(errors).map(([key, messages]) => {
+      const fieldName =
+        key.charAt(0).toLowerCase() + key.slice(1);
+
+      return [fieldName, messages];
+    }),
+  );
+}
+
 export function useSensorRegistration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState(null);
@@ -35,10 +50,7 @@ export function useSensorRegistration() {
 
       return {
         sensor: null,
-        validationErrors:
-          error.errors && typeof error.errors === "object"
-            ? error.errors
-            : {},
+        validationErrors: normaliseValidationErrors(error.errors),
       };
     } finally {
       setIsSubmitting(false);
@@ -56,4 +68,3 @@ export function useSensorRegistration() {
     clearSubmissionError,
   };
 }
-

@@ -14,6 +14,7 @@ export function SensorDirectory({ onBack }) {
   const [deploymentNodeId, setDeploymentNodeId] = useState("");
   const [selectedSensorId, setSelectedSensorId] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   const {
     sensors,
@@ -35,6 +36,9 @@ export function SensorDirectory({ onBack }) {
           onCancel={() => setIsRegistering(false)}
           onRegistered={(sensor) => {
             setIsRegistering(false);
+            setSuccessMessage(
+              `${sensor.friendlyName} was registered successfully.`,
+            );
             refresh();
             setSelectedSensorId(sensor.id);
           }}
@@ -48,7 +52,11 @@ export function SensorDirectory({ onBack }) {
       <main className="app-shell sensor-workspace">
         <SensorDetail
           sensorId={selectedSensorId}
-          onBack={() => setSelectedSensorId(null)}
+          successMessage={successMessage}
+          onBack={() => {
+            setSelectedSensorId(null);
+            setSuccessMessage(null);
+          }}
         />
       </main>
     );
