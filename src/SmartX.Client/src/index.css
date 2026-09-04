@@ -109,3 +109,34 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Keep the current light interface internally consistent. */
+:root {
+  color-scheme: light;
+  --text: #5f6368;
+  --text-h: #08060d;
+  --bg: #ffffff;
+  --border: #d9dde3;
+}
+
+/* Ensure every interactive form control has a visible keyboard focus. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid #6b21a8;
+  outline-offset: 3px;
+}
+
+/* Preserve visible boundaries in Windows high-contrast mode. */
+@media (forced-colors: active) {
+  .status-badge,
+  .value-kind,
+  .connection-badge,
+  .validation-valid,
+  .validation-invalid,
+  .success-banner,
+  .form-error-summary {
+    border: 1px solid currentColor;
+  }
+}
