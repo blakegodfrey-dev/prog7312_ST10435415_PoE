@@ -333,3 +333,85 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.sensor-detail {
+  border: 1px solid #d9dde3;
+  border-radius: 18px;
+  padding: 28px;
+  background: #ffffff;
+}
+
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.detail-header {
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e1e5e8;
+}
+
+.detail-header h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 24px 0 0;
+  overflow: hidden;
+  border: 1px solid #e1e5e8;
+  border-radius: 12px;
+  background: #e1e5e8;
+}
+
+.detail-grid > div {
+  padding: 18px;
+  background: #ffffff;
+}
+
+.detail-grid dt {
+  margin-bottom: 5px;
+  color: #687278;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.detail-grid dd {
+  margin: 0;
+  color: #182126;
+  overflow-wrap: anywhere;
+}
+
+.detail-grid small {
+  color: #687278;
+}
+
+.detail-id {
+  grid-column: 1 / -1;
+}
+
+.state-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+@media (max-width: 650px) {
+  .sensor-detail {
+    padding: 20px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-id {
+    grid-column: auto;
+  }
+}

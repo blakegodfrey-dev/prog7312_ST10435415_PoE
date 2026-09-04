@@ -4,12 +4,14 @@ import {
   getSensorCategoryLabel,
   getTelemetryValueKindLabel,
 } from "../../api/sensorOptions";
+import { SensorDetail } from "./SensorDetail";
 import { useSensorDirectory } from "./useSensorDirectory";
 
 export function SensorDirectory({ onBack }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [deploymentNodeId, setDeploymentNodeId] = useState("");
+  const [selectedSensorId, setSelectedSensorId] = useState(null);
 
   const {
     sensors,
@@ -22,6 +24,17 @@ export function SensorDirectory({ onBack }) {
     category,
     deploymentNodeId,
   });
+
+  if (selectedSensorId) {
+    return (
+      <main className="app-shell sensor-workspace">
+        <SensorDetail
+          sensorId={selectedSensorId}
+          onBack={() => setSelectedSensorId(null)}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell sensor-workspace">
@@ -164,7 +177,11 @@ export function SensorDirectory({ onBack }) {
                 </div>
               </dl>
 
-              <button type="button" className="text-button">
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setSelectedSensorId(sensor.id)}
+              >
                 View sensor details
               </button>
             </article>
