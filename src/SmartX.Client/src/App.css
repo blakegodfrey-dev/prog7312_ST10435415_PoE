@@ -1155,3 +1155,81 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.telemetry-chart {
+  margin: 0 0 18px;
+  overflow: hidden;
+  border: 1px solid #d9dde3;
+  border-radius: 12px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.telemetry-chart figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.telemetry-chart figcaption strong {
+  color: #182126;
+}
+
+.telemetry-chart figcaption span {
+  color: #687278;
+  font-size: 0.8rem;
+}
+
+.telemetry-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 220px;
+}
+
+.chart-grid-line {
+  stroke: #e3e7e5;
+  stroke-width: 1;
+}
+
+.chart-axis {
+  stroke: #899398;
+  stroke-width: 1.2;
+}
+
+.chart-axis-label {
+  fill: #687278;
+  font-size: 12px;
+}
+
+.chart-line {
+  fill: none;
+  stroke: #216b36;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.chart-point {
+  fill: #ffffff;
+  stroke: #216b36;
+  stroke-width: 3;
+}
+
+@media (max-width: 600px) {
+  .telemetry-chart {
+    padding: 12px;
+  }
+
+  .telemetry-chart figcaption {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .telemetry-chart svg {
+    min-height: 180px;
+  }
+}

@@ -5,6 +5,7 @@ import {
   getConnectionStatusLabel,
 } from "./telemetryDisplay";
 import { useSensorTelemetry } from "./useSensorTelemetry";
+import { TelemetryChart } from "./TelemetryChart";
 
 const PAGE_SIZE = 25;
 
@@ -143,7 +144,12 @@ export function TelemetryHistoryPanel({ sensorId }) {
         !error &&
         history &&
         history.readings.length > 0 && (
-          <>
+        <>
+          <TelemetryChart
+            readings={history.readings}
+            unit={history.unit}
+          />
+
             <div className="telemetry-table-wrapper">
               <table className="telemetry-table">
                 <thead>
