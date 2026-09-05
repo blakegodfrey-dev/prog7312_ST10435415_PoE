@@ -1233,3 +1233,20 @@ button:focus-visible {
     min-height: 180px;
   }
 }
+
+.chart-range-band {
+  fill: #e6f4ea;
+  opacity: 0.7;
+}
+
+.chart-range-boundary {
+  stroke: #438653;
+  stroke-dasharray: 6 5;
+  stroke-width: 1.5;
+}
+
+.chart-range-label {
+  fill: #285c35;
+  font-size: 11px;
+  font-weight: 700;
+}

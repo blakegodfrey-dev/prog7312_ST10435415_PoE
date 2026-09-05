@@ -1,5 +1,7 @@
+import { useState } from "react";
 import {
   formatTelemetryTimestamp,
+  formatTelemetryValue,
   getTelemetryValue,
 } from "./telemetryDisplay";
 
@@ -36,7 +38,12 @@ function formatShortTime(value) {
   }).format(date);
 }
 
-export function TelemetryChart({ readings, unit }) {
+export function TelemetryChart({
+    readings,
+    unit,
+    expectedMinimum,
+    expectedMaximum,
+  }) { const [selectedReadingId, setSelectedReadingId] = useState(null);
   const points = readings
     .map((reading) => ({
       ...reading,
@@ -57,11 +64,32 @@ export function TelemetryChart({ readings, unit }) {
   }
 
   const valueKind = points[0].valueKind;
-  const values = points.map((point) => point.chartValue);
-  const minimumValue =
-    valueKind === "Boolean" ? 0 : Math.min(...values);
-  const maximumValue =
-    valueKind === "Boolean" ? 1 : Math.max(...values);
+
+const hasExpectedRange =
+  valueKind !== "Boolean" &&
+  Number.isFinite(Number(expectedMinimum)) &&
+  Number.isFinite(Number(expectedMaximum));
+
+const numericExpectedMinimum = hasExpectedRange
+  ? Number(expectedMinimum)
+  : null;
+const numericExpectedMaximum = hasExpectedRange
+  ? Number(expectedMaximum)
+  : null;
+
+const values = points.map((point) => point.chartValue);
+const scaleValues = hasExpectedRange
+  ? [
+      ...values,
+      numericExpectedMinimum,
+      numericExpectedMaximum,
+    ]
+  : values;
+
+const minimumValue =
+  valueKind === "Boolean" ? 0 : Math.min(...scaleValues);
+const maximumValue =
+  valueKind === "Boolean" ? 1 : Math.max(...scaleValues);
 
   const valuePadding =
     maximumValue === minimumValue
@@ -104,6 +132,25 @@ export function TelemetryChart({ readings, unit }) {
   const lastPoint = points[points.length - 1];
   const unitLabel = unit ? ` (${unit})` : "";
 
+  const selectedPoint = points.find(
+  (point) => point.id === selectedReadingId,
+);
+
+function selectInvalidPoint(point) {
+  if (!point.isValid) {
+    return;
+  }
+
+  setSelectedReadingId(point.id);
+}
+
+function handleInvalidPointKeyDown(event, point) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    selectInvalidPoint(point);
+  }
+}
+
   return (
     <figure className="telemetry-chart">
       <figcaption>
@@ -119,7 +166,46 @@ export function TelemetryChart({ readings, unit }) {
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
         aria-label={`Recent telemetry trend containing ${points.length} readings.`}
-      >
+      > {hasExpectedRange && (
+  <>
+    <rect
+      className="chart-range-band"
+      x={PADDING.left}
+      y={getY(numericExpectedMaximum)}
+      width={plotWidth}
+      height={
+        getY(numericExpectedMinimum) -
+        getY(numericExpectedMaximum)
+      }
+    />
+
+    <line
+      className="chart-range-boundary"
+      x1={PADDING.left}
+      x2={WIDTH - PADDING.right}
+      y1={getY(numericExpectedMaximum)}
+      y2={getY(numericExpectedMaximum)}
+    />
+
+    <line
+      className="chart-range-boundary"
+      x1={PADDING.left}
+      x2={WIDTH - PADDING.right}
+      y1={getY(numericExpectedMinimum)}
+      y2={getY(numericExpectedMinimum)}
+    />
+
+    <text
+      className="chart-range-label"
+      x={WIDTH - PADDING.right - 6}
+      y={getY(numericExpectedMaximum) + 15}
+      textAnchor="end"
+    >
+      Expected {numericExpectedMinimum}-{numericExpectedMaximum}
+      {unit ? ` ${unit}` : ""}
+    </text>
+  </>
+)}
         {[yMaximum, middleValue, yMinimum].map((value) => {
           const y = getY(value);
 
@@ -167,21 +253,60 @@ export function TelemetryChart({ readings, unit }) {
           />
         )}
 
-        {points.map((point, index) => (
-          <circle
-            className="chart-point"
-            key={point.id}
-            cx={getX(index)}
-            cy={getY(point.chartValue)}
-            r="4"
-          >
-            <title>
-              {`${formatTelemetryTimestamp(point.recordedAtUtc)}: ${
-                formatAxisValue(point.chartValue, valueKind)
-              }${unit ? ` ${unit}` : ""}`}
-            </title>
-          </circle>
-        ))}
+        {points.map((point, index) => {
+          const x = getX(index);
+          const y = getY(point.chartValue);
+          const tooltip = `${formatTelemetryTimestamp(
+            point.recordedAtUtc,
+          )}: ${formatAxisValue(point.chartValue, valueKind)}${
+            unit ? ` ${unit}` : ""
+          }`;
+
+          if (point.isValid) {
+            return (
+              <circle
+                className="chart-point"
+                key={point.id}
+                cx={x}
+                cy={y}
+                r="4"
+              >
+                <title>{tooltip}</title>
+              </circle>
+            );
+          }
+
+          return (
+            <g
+              className={
+                selectedReadingId === point.id
+                  ? "chart-anomaly selected"
+                  : "chart-anomaly"
+              }
+              key={point.id}
+              role="button"
+              tabIndex="0"
+              aria-label={`Invalid reading. ${tooltip}. Select for details.`}
+              onClick={() => selectInvalidPoint(point)}
+              onKeyDown={(event) =>
+                handleInvalidPointKeyDown(event, point)
+              }
+            >
+              <polygon
+                points={
+                  `${x},${y - 9} ` +
+                  `${x + 9},${y} ` +
+                  `${x},${y + 9} ` +
+                  `${x - 9},${y}`
+                }
+              />
+              <text x={x} y={y + 4} textAnchor="middle">
+                !
+              </text>
+              <title>{`${tooltip}. Invalid reading.`}</title>
+            </g>
+          );
+        })}
 
         <text
           className="chart-axis-label"
@@ -201,6 +326,55 @@ export function TelemetryChart({ readings, unit }) {
           {formatShortTime(lastPoint.recordedAtUtc)}
         </text>
       </svg>
+      {selectedPoint && (
+  <aside
+    className="anomaly-details"
+    aria-live="polite"
+    aria-label="Selected anomaly details"
+  >
+    <div className="anomaly-details-heading">
+      <div>
+        <p className="eyebrow">SELECTED ANOMALY</p>
+        <strong>Investigation details</strong>
+      </div>
+
+      <button
+        type="button"
+        className="text-button"
+        onClick={() => setSelectedReadingId(null)}
+      >
+        Close
+      </button>
+    </div>
+
+    <dl>
+      <div>
+        <dt>Recorded</dt>
+        <dd>
+          {formatTelemetryTimestamp(selectedPoint.recordedAtUtc)}
+        </dd>
+      </div>
+
+      <div>
+        <dt>Reading</dt>
+        <dd>{formatTelemetryValue(selectedPoint, unit)}</dd>
+      </div>
+
+      <div>
+        <dt>Validation</dt>
+        <dd>Invalid</dd>
+      </div>
+
+      <div>
+        <dt>Reason</dt>
+        <dd>
+          {selectedPoint.validationMessage ||
+            "The reading failed telemetry validation."}
+        </dd>
+      </div>
+    </dl>
+  </aside>
+)}
     </figure>
   );
 }

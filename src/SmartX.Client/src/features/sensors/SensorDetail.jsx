@@ -134,7 +134,11 @@ export function SensorDetail({
         </div>
       </dl>
 
-      <TelemetryHistoryPanel sensorId={sensor.id} />
+      <TelemetryHistoryPanel
+        sensorId={sensor.id}
+        expectedMinimum={sensor.expectedMinimum}
+        expectedMaximum={sensor.expectedMaximum}
+      />
       <SensorAttachmentsPanel sensorId={sensor.id} />
     </section>
   );

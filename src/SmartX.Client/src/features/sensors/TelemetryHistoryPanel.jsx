@@ -21,7 +21,11 @@ function toValidityFilter(value) {
   return undefined;
 }
 
-export function TelemetryHistoryPanel({ sensorId }) {
+export function TelemetryHistoryPanel({
+    sensorId,
+    expectedMinimum,
+    expectedMaximum,
+  }) {
   const [validityFilter, setValidityFilter] = useState("all");
   const [page, setPage] = useState(1);
 
@@ -148,6 +152,8 @@ export function TelemetryHistoryPanel({ sensorId }) {
           <TelemetryChart
             readings={history.readings}
             unit={history.unit}
+            expectedMinimum={expectedMinimum}
+            expectedMaximum={expectedMaximum}
           />
 
             <div className="telemetry-table-wrapper">
