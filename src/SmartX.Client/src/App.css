@@ -1250,3 +1250,85 @@ button:focus-visible {
   font-size: 11px;
   font-weight: 700;
 }
+
+.chart-anomaly {
+  cursor: pointer;
+  outline: none;
+}
+
+.chart-anomaly polygon {
+  fill: #fff1f0;
+  stroke: #b3261e;
+  stroke-width: 3;
+}
+
+.chart-anomaly text {
+  fill: #8c1d18;
+  font-size: 12px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.chart-anomaly:hover polygon,
+.chart-anomaly:focus polygon,
+.chart-anomaly.selected polygon {
+  fill: #b3261e;
+  stroke: #6f1713;
+  stroke-width: 4;
+}
+
+.chart-anomaly:hover text,
+.chart-anomaly:focus text,
+.chart-anomaly.selected text {
+  fill: #ffffff;
+}
+
+.anomaly-details {
+  margin-top: 14px;
+  border: 1px solid #e3a7a7;
+  border-left: 5px solid #b3261e;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fff7f7;
+}
+
+.anomaly-details-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.anomaly-details-heading .eyebrow {
+  color: #8c1d18;
+}
+
+.anomaly-details dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 0;
+}
+
+.anomaly-details dl div {
+  min-width: 0;
+}
+
+.anomaly-details dt {
+  margin-bottom: 3px;
+  color: #687278;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.anomaly-details dd {
+  margin: 0;
+  color: #40201e;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .anomaly-details dl {
+    grid-template-columns: 1fr;
+  }
+}
