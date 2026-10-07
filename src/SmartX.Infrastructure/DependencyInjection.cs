@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartX.Application.Attachments;
+using SmartX.Application.Live;
+using SmartX.Infrastructure.Live;
 using SmartX.Infrastructure.Attachments;
 using SmartX.Infrastructure.Persistence;
 using SmartX.Infrastructure.Persistence.Seeding;
@@ -48,6 +50,12 @@ public static class DependencyInjection
         services.AddSingleton<IAttachmentFileStorage>(
             new LocalAttachmentFileStorage(storageRootPath));
 
+        var capacityText = configuration["LiveTelemetry:RecentHistoryCapacity"]
+            ?? LiveTelemetryStore.DefaultHistoryCapacity.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (!int.TryParse(capacityText, out var capacity))
+            throw new InvalidOperationException("LiveTelemetry:RecentHistoryCapacity must be an integer.");
+        services.AddSingleton(new LiveTelemetryStore(capacity));
+        services.AddScoped<LiveTelemetryService>();
         services.AddScoped<SmartXDatabaseSeeder>();
 
         return services;

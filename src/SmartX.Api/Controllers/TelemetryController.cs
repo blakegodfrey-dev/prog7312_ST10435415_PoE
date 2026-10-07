@@ -7,6 +7,9 @@ using SmartX.Domain.Entities;
 using SmartX.Domain.Enums;
 using SmartX.Domain.Telemetry;
 using SmartX.Infrastructure.Persistence;
+using SmartX.Infrastructure.Live;
+using SmartX.Application.Live;
+using Microsoft.Extensions.DependencyInjection;
 using SmartX.Infrastructure.Persistence.Entities;
 
 namespace SmartX.Api.Controllers;
@@ -35,10 +38,19 @@ public sealed class TelemetryController : ControllerBase
 
     private readonly SmartXDbContext _context;
 
-    public TelemetryController(SmartXDbContext context)
+    private readonly LiveTelemetryService _live;
+
+    [ActivatorUtilitiesConstructor]
+    public TelemetryController(SmartXDbContext context, LiveTelemetryService live)
     {
         _context = context;
+        _live = live;
     }
+
+    // Preserve the original isolated-controller test construction. Production
+    // activation selects the constructor above and its shared singleton store.
+    public TelemetryController(SmartXDbContext context)
+        : this(context, new LiveTelemetryService(context, new LiveTelemetryStore())) { }
 
     [HttpPost("float")]
     public Task<ActionResult<TelemetryReadingResponse>> IngestFloat(
@@ -183,10 +195,7 @@ public sealed class TelemetryController : ControllerBase
             .Distinct()
             .ToList();
 
-        var sensors = await _context.Sensors
-            .AsNoTracking()
-            .Where(sensor => sensorIds.Contains(sensor.Id))
-            .ToDictionaryAsync(sensor => sensor.Id, cancellationToken);
+        var sensors = await _live.ResolveSensorsAsync(sensorIds, cancellationToken);
 
         var missingSensorId = sensorIds
             .FirstOrDefault(sensorId => !sensors.ContainsKey(sensorId));
@@ -230,6 +239,8 @@ public sealed class TelemetryController : ControllerBase
             return ConflictError(
                 "The telemetry batch conflicts with existing readings.");
         }
+
+        _live.PublishCommitted(records);
 
         var responses = records
             .Select(ToResponse)
@@ -370,11 +381,7 @@ public sealed class TelemetryController : ControllerBase
                 "The received timestamp cannot precede the recorded timestamp.");
         }
 
-        var sensor = await _context.Sensors
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                candidate => candidate.Id == request.SensorId,
-                cancellationToken);
+        var sensor = await _live.ResolveSensorAsync(request.SensorId, cancellationToken);
 
         if (sensor is null)
         {
@@ -429,6 +436,8 @@ public sealed class TelemetryController : ControllerBase
             return ConflictError(
                 "The telemetry record conflicts with an existing reading.");
         }
+
+        _live.PublishCommitted([record]);
 
         return CreatedAtAction(
             nameof(GetById),

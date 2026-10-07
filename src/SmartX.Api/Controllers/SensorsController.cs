@@ -5,6 +5,9 @@ using SmartX.Api.Contracts.Sensors;
 using SmartX.Domain.Entities;
 using SmartX.Domain.Enums;
 using SmartX.Infrastructure.Persistence;
+using SmartX.Infrastructure.Live;
+using SmartX.Application.Live;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SmartX.Api.Controllers;
 
@@ -32,10 +35,19 @@ public sealed class SensorsController : ControllerBase
 
     private readonly SmartXDbContext _context;
 
-    public SensorsController(SmartXDbContext context)
+    private readonly LiveTelemetryService _live;
+
+    [ActivatorUtilitiesConstructor]
+    public SensorsController(SmartXDbContext context, LiveTelemetryService live)
     {
         _context = context;
+        _live = live;
     }
+
+    // Preserve the original isolated-controller test construction. Production
+    // activation selects the constructor above and its shared singleton store.
+    public SensorsController(SmartXDbContext context)
+        : this(context, new LiveTelemetryService(context, new LiveTelemetryStore())) { }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SensorResponse>>> GetAll(
@@ -210,6 +222,8 @@ public sealed class SensorsController : ControllerBase
             return ConflictError(
                 "The sensor conflicts with an existing registration.");
         }
+
+        _live.RegisterCommitted(sensor);
 
         var response = new SensorResponse(
             sensor.Id,

@@ -12,10 +12,10 @@ The startup interface presents the three planned Smart-X pillars:
 | Pillar | Current status |
 |---|---|
 | Sensor Data Ingestion and Telemetry | Implemented and enabled |
-| Real-Time Command Stream and History | Enabled; Package 1 workspace shell and retained UI choices |
+| Real-Time Command Stream and History | Enabled; retained workspace shell plus Package 2 live-registry/history APIs |
 | Network Topology and Mesh Routing | Visible but disabled until the final PoE |
 
-The complete Part 1 ingestion module remains in place. Part 2 is being added in seven packages. Package 1 enables navigation and the Command Stream shell; its operational data and controls are completed in later packages. Topology remains final-PoE work.
+The complete Part 1 ingestion module remains in place. Part 2 is being added in seven packages. Packages 1 and 2 provide navigation, retained state, the Command Stream shell and live-registry/history APIs. Operational dashboard data and controls are connected in later packages. Topology remains final-PoE work.
 
 ## Main capabilities
 
@@ -29,6 +29,7 @@ The complete Part 1 ingestion module remains in place. Part 2 is being added in 
 - Present connected, stale, disconnected, no-data and invalid fleet information.
 - Plot telemetry with a labelled expected-range band and selectable anomaly markers.
 - Return structured HTTP errors with suitable `400`, `404`, `409` and `413` statuses.
+- Resolve registered devices through a canonical MAC dictionary and retain a bounded, timestamp-ordered recent telemetry window, with full history remaining in SQL.
 
 ## Architecture
 
@@ -260,6 +261,8 @@ Important route groups include:
 | Bulk telemetry | `POST /api/Telemetry/bulk` |
 | History | `GET /api/Telemetry/sensors/{sensorId}` |
 | Diagnostics | `/api/telemetry/diagnostics/*` |
+| Live registry | `GET /api/live/devices`, `GET /api/live/devices/{macAddress}` |
+| Recent live history | `GET /api/live/history?macAddress=...&limit=100` |
 | Attachments | Sensor-specific list, upload, download and delete routes |
 
 Refer to `/openapi/v1.json` for the authoritative request/response schemas.
@@ -396,7 +399,7 @@ The Development seed is designed to avoid duplicating an existing hierarchy. Con
 - Devices and telemetry are simulated; physical ESP32 hardware is optional and not included.
 - The dashboard uses request/refresh interactions rather than WebSockets.
 - The React client does not provide a manual telemetry-ingestion form; simulated devices use the API.
-- Command Stream navigation and its shell are enabled. Live registry/history, processing queues, incidents, commands/Undo, complete dashboard and learned suggestions are developed in Packages 2-7.
+- Command Stream navigation, retained state and its shell are enabled; live registry/history APIs are implemented. Queues, incidents, commands/Undo, dashboard integration and learned suggestions are developed in Packages 3-7.
 - Network Topology and Mesh Routing remains deferred to the final PoE.
 - Local attachment storage is suitable for this assessment environment and can later be replaced by managed cloud/object storage.
 
@@ -462,13 +465,12 @@ Package 1 was rebuilt and reverified from `prog7312-IoT(3).zip` for `C:\Dev\prog
 
 The .NET checks used SDK 10.0.401 and serial MSBuild (`-m:1 -p:UseSharedCompilation=false`) because compiler/build-server IPC was unavailable here. Backend source, API contracts, migrations and existing backend tests are byte-for-byte unchanged from the supplied Part 1 source. The live API smoke check used its health endpoint without SQL I/O; the rendered React tests use controlled device responses. These checks do not claim live SQL ingestion, attachments or load testing.
 
-See [BLAKE_1_INSTRUCTIONS.md](BLAKE_1_INSTRUCTIONS.md) for installation, files and five recommended commit groups, and [Package 1 verification and traceability](docs/part2/Package_1_Verification.md) for the exact demo and local regression checklist.
+Package 1 installation and commit groups were supplied inside `blake_1.zip`. See the retained [Package 1 verification and traceability](docs/part2/Package_1_Verification.md) for its demonstration and local regression checklist.
 
 ### Remaining Part 2 packages
 
 | Package | Scope |
 |---|---|
-| `blake_2` | MAC-keyed live registry and timestamp-ordered recent history |
 | `blake_3` | FIFO/priority telemetry buffers and background processing |
 | `blake_4` | Unique incidents, recovery and heartbeat/connection lifecycle |
 | `blake_5` | Persisted commands, acknowledgement and Stack-backed Undo |
@@ -476,3 +478,60 @@ See [BLAKE_1_INSTRUCTIONS.md](BLAKE_1_INSTRUCTIONS.md) for installation, files a
 | `blake_7` | Persisted user history, learned suggestions and final traceability/regression |
 
 No database migration is required for Package 1. Existing database and seed setup remains as documented above. Part 2's 30-mark navigation criterion concerns the final integrated application; this package establishes its navigation/state foundation, rather than claiming a completed 100-mark Part 2 submission.
+
+
+## Part 2 Package 2: live registry and ordered recent history
+
+Package 2 adds an immutable device snapshot registry backed by `Dictionary<string, DeviceSnapshot>`, using the same trimmed, uppercase colon-separated MAC format as Part 1. An ID-to-MAC dictionary preserves the existing GUID-based ingestion contracts. Single and bulk ingestion resolve configurations through these dictionaries; their native float/integer/Boolean routes and responses stay compatible.
+
+The first live request or ingestion hydrates the shared store from registered SQL devices, each device's latest persisted reading and maximum persisted received timestamp, and a bounded recent window. Registered devices without readings remain visible. Initialization is asynchronous, serialized and retryable after failure. API registrations merge into the store after their SQL save succeeds.
+
+Committed readings enter `SortedDictionary<DateTimeOffset, List<TelemetrySnapshot>>`. The list preserves separate reading IDs at the same UTC instant. Readings are returned in ascending recorded-time order, with received time and canonical reading-ID text breaking ties. A late older reading does not replace a newer current value. The cache updates after successful SQL persistence; invalid batches and failed saves publish no new committed readings.
+
+`LiveTelemetry:RecentHistoryCapacity` in `src/SmartX.Api/appsettings.json` defaults to **2,000 readings globally**, with an allowed range of 1-100,000. Retention removes the chronologically oldest records, including individual entries in a large equal-time bucket. Device latest snapshots survive history eviction. Restart the API after changing capacity.
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/live/devices` | Registered-device snapshots, including devices with no telemetry |
+| `GET /api/live/devices/{macAddress}` | Canonical MAC lookup; malformed MAC is 400, unregistered MAC is 404 |
+| `GET /api/live/history` | Most recent matching retained readings, presented chronologically |
+| `GET /api/live/history?macAddress=A4%3ACF%3A12%3A8B%3A40%3A01&limit=100` | Recent readings for one registered MAC |
+| `GET /api/telemetry/sensors/{sensorId}` | Existing paged full/older SQL history, unchanged |
+
+Recent history accepts `limit` (1-500), inclusive `fromUtc` and `toUtc`, and an optional MAC filter. Its `source` is `RecentMemory`; `retainedCount` and oldest/newest timestamps describe the global memory window. `matchingCount` counts matching retained readings before the limit. `isLimited` describes the requested limit, not the existence of older SQL data. This endpoint never claims to return complete historical data.
+
+`lastReceivedAtUtc` is the maximum **persisted telemetry received timestamp**, which the existing simulation contract can supply. It is not new gateway heartbeat evidence or a connection-state verdict; those are Package 4 work. Latest value is selected by recorded time independently of this received timestamp.
+
+### Demonstrate Package 2
+
+Start the API in Development against your existing SQL database using the setup above, then run from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-LiveRegistry.ps1
+```
+
+This script submits four to six deterministic native readings through the existing bulk HTTP route, including out-of-order and same-timestamp records, then checks MAC lookup and ordered history. It adds simulation readings to SQL and does not reset the database. Run against a quiet local API with capacity at least 6.
+
+Focused collection, persistence and HTTP checks:
+
+```powershell
+dotnet test .\SmartX.sln -c Release --filter 'FullyQualifiedName~SmartX.Tests.Live'
+```
+
+### Package 2 verification, 7 October 2026
+
+| Check | Preparation result |
+|---|---|
+| Full .NET regression suite | 184 passed: original 137 plus 47 Package 2 cases; 0 failed/skipped |
+| Release build with warnings as errors | Passed; 0 warnings/errors |
+| Frontend unit and rendered navigation tests | 11 + 9 passed |
+| Frontend lint and production build | Passed |
+| Real HTTP registration, bulk ingestion, MAC lookup and bounded history | Passed using Kestrel and EF InMemory persistence |
+| Actual hydration queries through the SQL Server provider | Translated successfully without a database connection |
+| Windows installer/demo and live SQL Server execution | Requires local verification |
+
+The HTTP check exercises production service lifetimes and actual API controllers, replacing only the persistence provider. SQL translation checks do not claim live SQL execution or measured lookup/timeline latency. The frontend is byte-for-byte unchanged from Package 1; its operational Command Stream panels are connected later.
+
+The store supports one API process and writes through this API. Direct SQL edits or another API instance require a restart to rebuild this process's cache. Publication follows SQL commit without a distributed transaction; a process restart rebuilds committed state from SQL.
+
+Use [BLAKE_2_INSTRUCTIONS.md](BLAKE_2_INSTRUCTIONS.md) for installation and five genuine commit groups, and [Package 2 verification](docs/part2/Package_2_Verification.md) for test coverage, complexity and the local checklist. No database migration or new dependency is required.

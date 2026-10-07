@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using SmartX.Domain.ValueObjects;
 using SmartX.Domain.Enums;
 
 namespace SmartX.Domain.Entities;
@@ -8,10 +8,6 @@ namespace SmartX.Domain.Entities;
 /// </summary>
 public sealed class Sensor
 {
-    private static readonly Regex MacAddressPattern = new(
-        @"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
     private Sensor()
     {
         // Required later by Entity Framework Core.
@@ -43,15 +39,7 @@ public sealed class Sensor
                 nameof(deploymentNodeId));
         }
 
-        var normalisedMacAddress = RequireText(macAddress, nameof(macAddress))
-            .ToUpperInvariant();
-
-        if (!MacAddressPattern.IsMatch(normalisedMacAddress))
-        {
-            throw new ArgumentException(
-                "The MAC address must use the format A4:CF:12:8B:39:01.",
-                nameof(macAddress));
-        }
+        var normalisedMacAddress = MacAddressNormalizer.Normalize(macAddress);
 
         ValidateExpectedRange(
             valueKind,
