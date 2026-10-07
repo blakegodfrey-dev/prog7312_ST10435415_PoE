@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { sensorsApi } from "../../api/sensorsApi";
 
 export function useSensorDetail(sensorId) {
@@ -23,9 +23,11 @@ export function useSensorDetail(sensorId) {
           signal: controller.signal,
         });
 
+        if (controller.signal.aborted) return;
+
         setSensor(result);
       } catch (requestError) {
-        if (requestError?.name !== "AbortError") {
+        if (!controller.signal.aborted && requestError?.name !== "AbortError") {
           setError(requestError);
         }
       } finally {

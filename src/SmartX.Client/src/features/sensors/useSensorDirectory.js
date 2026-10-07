@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { deploymentNodesApi } from "../../api/deploymentNodesApi";
 import { sensorsApi } from "../../api/sensorsApi";
 
@@ -41,10 +41,12 @@ export function useSensorDirectory({
           }),
         ]);
 
+        if (controller.signal.aborted) return;
+
         setSensors(sensorResults);
         setLocations(locationResults);
       } catch (requestError) {
-        if (requestError?.name !== "AbortError") {
+        if (!controller.signal.aborted && requestError?.name !== "AbortError") {
           setError(requestError);
         }
       } finally {

@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 tests/browser/*.test.mjs",
+    "test:integration": "node --test --test-concurrency=1 tests/integration/*.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -22,6 +25,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.4",
     "globals": "^17.11.0",
+    "jsdom": "26.1.0",
+    "playwright": "1.62.1",
     "vite": "^8.2.2"
   }
 }

@@ -1,21 +1,21 @@
-# Smart-X IoT Mesh Ecosystem - Part 1
+# Smart-X IoT Mesh Ecosystem - Parts 1 and 2
 
 Student number: **ST10435415**
 Module: **PROG7312 / AAPD7112 - Programming 3B / Advanced Application Development**
 
 Smart-X is a simulated IoT data-ingestion and validation gateway for a South African smart hydroponic facility. It registers typed sensors, receives and validates high-volume telemetry, stores data in SQL Server, manages sensor attachments, and helps a developer identify abnormal readings and disconnected devices.
 
-## Part 1 scope
+## Current implementation scope
 
 The startup interface presents the three planned Smart-X pillars:
 
-| Pillar | Part 1 status |
+| Pillar | Current status |
 |---|---|
 | Sensor Data Ingestion and Telemetry | Implemented and enabled |
-| Real-Time Command Stream and History | Visible but disabled until Part 2 |
+| Real-Time Command Stream and History | Enabled; Package 1 workspace shell and retained UI choices |
 | Network Topology and Mesh Routing | Visible but disabled until the final PoE |
 
-Only the first pillar is implemented. The two future pillars are deliberately not simulated with incomplete functionality.
+The complete Part 1 ingestion module remains in place. Part 2 is being added in seven packages. Package 1 enables navigation and the Command Stream shell; its operational data and controls are completed in later packages. Topology remains final-PoE work.
 
 ## Main capabilities
 
@@ -65,7 +65,7 @@ The React client never connects directly to SQL Server or the attachment directo
 Install the following before running the project:
 
 - .NET 10 SDK
-- Node.js and npm
+- Node.js 20.19+ or 22.12+ and npm (Package 1 checked with Node.js 24.19.0)
 - SQL Server Express LocalDB (`MSSQLLocalDB`) or another configured SQL Server instance
 - EF Core command-line tool version 10 (`dotnet-ef`)
 - Git
@@ -91,7 +91,15 @@ The React client obtains its API base address from its Vite environment configur
 http://localhost:5075
 ```
 
-Copy the relevant example environment file if a local `.env` file is required. Local `.env` files must remain excluded from Git.
+From the repository root, create the client configuration if it is missing:
+
+```powershell
+if (-not (Test-Path .\src\SmartX.Client\.env)) {
+    Copy-Item .\src\SmartX.Client\.env.example .\src\SmartX.Client\.env
+}
+```
+
+Restart Vite after changing this value. Local `.env` files must remain excluded from Git. API CORS currently permits `http://localhost:5173`; use that exact client origin. A Production API run needs an explicit `ConnectionStrings__SmartXDatabase` value because the supplied database configuration is Development-only.
 
 ## Restore dependencies
 
@@ -168,7 +176,7 @@ The project exposes the OpenAPI JSON document but does not install a separate Sw
 Open a second PowerShell window:
 
 ```powershell
-cd C:\Dev\prog7312-IoT\src\SmartX.Client
+cd C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE\src\SmartX.Client
 npm.cmd run dev
 ```
 
@@ -183,7 +191,7 @@ http://localhost:5173
 Run the .NET Release build and automated suite:
 
 ```powershell
-cd C:\Dev\prog7312-IoT
+cd C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE
 dotnet build .\SmartX.sln -c Release -warnaserror
 dotnet test .\SmartX.sln -c Release --no-restore
 ```
@@ -196,9 +204,23 @@ npm.cmd run lint
 npm.cmd run build
 ```
 
-The client currently uses linting, production compilation and documented end-to-end verification rather than a separate browser-test dependency.
+Package 1 adds frontend tests:
 
-## Verified Phase 6 results
+```powershell
+npm.cmd test
+npm.cmd run test:integration
+```
+
+These check the state model and render the actual React modules through Vite in JSDOM with controlled HTTP responses. They do not require SQL Server. Optional Chromium checks also exercise the UI in a browser:
+
+```powershell
+npx.cmd playwright install chromium
+npm.cmd run test:browser
+```
+
+The browser tests start their own Vite instance on `127.0.0.1:4174` and intercept device API responses. Keep that port free. Neither test suite is a replacement for the live SQL-backed regression checklist.
+
+## Historical Part 1 Phase 6 results
 
 The following results were observed on 5 September 2026:
 
@@ -233,7 +255,7 @@ Important route groups include:
 |---|---|
 | Health | `GET /api/health` |
 | Sensors | Register, list and retrieve sensor profiles under `/api/sensors` |
-| Deployment | Retrieve valid deployment locations under `/api/deploymentnodes` |
+| Deployment | Retrieve valid deployment locations under `/api/deployment-nodes` |
 | Typed telemetry | `POST /api/Telemetry/float`, `/integer`, `/boolean` |
 | Bulk telemetry | `POST /api/Telemetry/bulk` |
 | History | `GET /api/Telemetry/sensors/{sensorId}` |
@@ -374,7 +396,7 @@ The Development seed is designed to avoid duplicating an existing hierarchy. Con
 - Devices and telemetry are simulated; physical ESP32 hardware is optional and not included.
 - The dashboard uses request/refresh interactions rather than WebSockets.
 - The React client does not provide a manual telemetry-ingestion form; simulated devices use the API.
-- Command Stream and History remains deferred to Part 2.
+- Command Stream navigation and its shell are enabled. Live registry/history, processing queues, incidents, commands/Undo, complete dashboard and learned suggestions are developed in Packages 2-7.
 - Network Topology and Mesh Routing remains deferred to the final PoE.
 - Local attachment storage is suitable for this assessment environment and can later be replaced by managed cloud/object storage.
 
@@ -383,7 +405,7 @@ The Development seed is designed to avoid duplicating an existing hierarchy. Con
 Before submitting:
 
 ```powershell
-cd C:\Dev\prog7312-IoT
+cd C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE
 
 dotnet build .\SmartX.sln -c Release -warnaserror
 dotnet test .\SmartX.sln -c Release --no-restore
@@ -398,3 +420,59 @@ git status --short
 ```
 
 Confirm that no secrets, local `.env` files, database files, uploaded test files, `bin`, `obj`, `node_modules` or generated `dist` output are staged. Commit meaningful source and documentation changes, push them to GitHub, and verify that the remote repository contains the final commit.
+
+
+## Part 2 Package 1: navigation and stability
+
+Use the consistent **Home / Telemetry / Command Stream** navigation at any depth in the Telemetry module, including sensor details and registration. Module changes use the existing App-based view selection and React rendering, without a router dependency or browser reload.
+
+A small React Context/reducer above the modules retains:
+
+- Telemetry search, category, location, selected sensor, registration draft and submission status.
+- History validity, page and selected anomaly independently for each sensor.
+- Command Stream search, category, alert filter, selected-device slot and history-view choice.
+
+Modules unmount when inactive. Their read requests are aborted, and late results are ignored before updating state. On return, the saved view choices are reused and API data is requested again. A submitted registration continues through the normal API request; its pending status prevents a second submission on returning, and success updates the Telemetry selection without changing the currently active module.
+
+State lasts for the current application session. A browser reload resets UI choices. Uploaded files remain on the server; an unsubmitted browser file selection is not retained across module changes.
+
+The shell contains Live devices, Selected device, Active alerts, Processing status, Command history and Telemetry history sections. Its filters currently retain choices; data filtering becomes functional when live data is connected. Command and Undo controls are visibly unavailable until the command workflow is implemented. No operational counters or live readings are invented for this phase.
+
+Three focused Part 1 fixes accompany the navigation:
+
+1. Invalid chart markers now open their investigation details by click or keyboard.
+2. Null expected bounds no longer become a misleading zero-to-zero chart band.
+3. Switching registration to Boolean ignores disabled numeric range fields, consistent with the existing null-bound API contract.
+
+### Package 1 verification, 7 October 2026
+
+Package 1 was rebuilt and reverified from `prog7312-IoT(3).zip` for `C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE`. This is the restart baseline for the seven-package sequence. No earlier Part 2 package is needed.
+
+| Check | Result in the package preparation environment |
+|---|---|
+| Frontend state/registration tests | 11 passed |
+| Rendered React navigation/stability tests | 9 passed |
+| Existing .NET regression suite | 137 passed, 0 failed, 0 skipped |
+| .NET 10 Release solution build with warnings as errors | Passed; 0 warnings, 0 errors |
+| ESLint | Passed |
+| Vite production build | Passed; 47 modules |
+| API startup and health | Started in Production; 100 health requests using 8 concurrent callers succeeded; healthy after navigation tests |
+| Chromium browser suite | Included, not executed: browser download unavailable in this environment |
+| SQL Server/LocalDB end-to-end UI regression | Requires the local verification checklist |
+
+The .NET checks used SDK 10.0.401 and serial MSBuild (`-m:1 -p:UseSharedCompilation=false`) because compiler/build-server IPC was unavailable here. Backend source, API contracts, migrations and existing backend tests are byte-for-byte unchanged from the supplied Part 1 source. The live API smoke check used its health endpoint without SQL I/O; the rendered React tests use controlled device responses. These checks do not claim live SQL ingestion, attachments or load testing.
+
+See [BLAKE_1_INSTRUCTIONS.md](BLAKE_1_INSTRUCTIONS.md) for installation, files and five recommended commit groups, and [Package 1 verification and traceability](docs/part2/Package_1_Verification.md) for the exact demo and local regression checklist.
+
+### Remaining Part 2 packages
+
+| Package | Scope |
+|---|---|
+| `blake_2` | MAC-keyed live registry and timestamp-ordered recent history |
+| `blake_3` | FIFO/priority telemetry buffers and background processing |
+| `blake_4` | Unique incidents, recovery and heartbeat/connection lifecycle |
+| `blake_5` | Persisted commands, acknowledgement and Stack-backed Undo |
+| `blake_6` | Complete operational dashboard and deterministic simulator scenarios |
+| `blake_7` | Persisted user history, learned suggestions and final traceability/regression |
+
+No database migration is required for Package 1. Existing database and seed setup remains as documented above. Part 2's 30-mark navigation criterion concerns the final integrated application; this package establishes its navigation/state foundation, rather than claiming a completed 100-mark Part 2 submission.

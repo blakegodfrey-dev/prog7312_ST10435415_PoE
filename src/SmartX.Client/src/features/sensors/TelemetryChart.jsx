@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   formatTelemetryTimestamp,
   formatTelemetryValue,
@@ -43,7 +42,9 @@ export function TelemetryChart({
     unit,
     expectedMinimum,
     expectedMaximum,
-  }) { const [selectedReadingId, setSelectedReadingId] = useState(null);
+    selectedReadingId,
+    onSelectReading,
+  }) {
   const points = readings
     .map((reading) => ({
       ...reading,
@@ -67,6 +68,8 @@ export function TelemetryChart({
 
 const hasExpectedRange =
   valueKind !== "Boolean" &&
+  expectedMinimum != null &&
+  expectedMaximum != null &&
   Number.isFinite(Number(expectedMinimum)) &&
   Number.isFinite(Number(expectedMaximum));
 
@@ -137,11 +140,11 @@ const maximumValue =
 );
 
 function selectInvalidPoint(point) {
-  if (!point.isValid) {
+  if (point.isValid) {
     return;
   }
 
-  setSelectedReadingId(point.id);
+  onSelectReading(point.id);
 }
 
 function handleInvalidPointKeyDown(event, point) {
@@ -341,7 +344,7 @@ function handleInvalidPointKeyDown(event, point) {
       <button
         type="button"
         className="text-button"
-        onClick={() => setSelectedReadingId(null)}
+        onClick={() => onSelectReading(null)}
       >
         Close
       </button>

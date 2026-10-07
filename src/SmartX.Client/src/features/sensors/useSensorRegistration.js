@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useWorkspaceState } from "../../state/useWorkspaceState.js";
 import { sensorsApi } from "../../api/sensorsApi";
 import {
   createSensorRegistrationRequest,
@@ -21,10 +21,18 @@ function normaliseValidationErrors(errors) {
 }
 
 export function useSensorRegistration() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionError, setSubmissionError] = useState(null);
+  // A submitted write can complete while another module is open. Keep its
+  // status above module lifetimes so returning cannot submit it a second time.
+  const { state, dispatch } = useWorkspaceState();
+  const isSubmitting = state.telemetry.isRegistrationSubmitting;
+  const submissionError = state.telemetry.registrationError;
+  const patch = (values) => dispatch({ type: "telemetry/patch", patch: values });
+  const setIsSubmitting = (isRegistrationSubmitting) => patch({ isRegistrationSubmitting });
+  const setSubmissionError = (registrationError) => patch({ registrationError });
 
   async function register(form) {
+    if (isSubmitting) return { sensor: null, validationErrors: {} };
+
     const validationErrors = validateSensorForm(form);
 
     if (Object.keys(validationErrors).length > 0) {

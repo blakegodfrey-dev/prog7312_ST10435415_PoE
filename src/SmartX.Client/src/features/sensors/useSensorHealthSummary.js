@@ -23,9 +23,11 @@ export function useSensorHealthSummary() {
           signal: controller.signal,
         });
 
+        if (controller.signal.aborted) return;
+
         setSummary(result);
       } catch (requestError) {
-        if (requestError?.name !== "AbortError") {
+        if (!controller.signal.aborted && requestError?.name !== "AbortError") {
           setError(requestError);
         }
       } finally {

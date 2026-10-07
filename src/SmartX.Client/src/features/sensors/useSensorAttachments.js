@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { attachmentsApi } from "../../api/attachmentsApi";
 import { validateAttachment } from "./attachmentValidation";
 
@@ -26,9 +26,11 @@ export function useSensorAttachments(sensorId) {
           signal: controller.signal,
         });
 
+        if (controller.signal.aborted) return;
+
         setAttachments(result);
       } catch (requestError) {
-        if (requestError?.name !== "AbortError") {
+        if (!controller.signal.aborted && requestError?.name !== "AbortError") {
           setError(requestError);
         }
       } finally {

@@ -1,4 +1,5 @@
-﻿import { useState } from "react";
+import { useWorkspaceState } from "../../state/useWorkspaceState.js";
+import { getSensorHistoryState } from "../../state/workspaceState.js";
 import {
   formatTelemetryTimestamp,
   formatTelemetryValue,
@@ -26,8 +27,9 @@ export function TelemetryHistoryPanel({
     expectedMinimum,
     expectedMaximum,
   }) {
-  const [validityFilter, setValidityFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const { state, dispatch } = useWorkspaceState();
+  const { validityFilter, page, selectedReadingId } = getSensorHistoryState(state, sensorId);
+  const patchHistory = (patch) => dispatch({ type: "history/patch", sensorId, patch });
 
   const {
     history,
@@ -47,8 +49,7 @@ export function TelemetryHistoryPanel({
     : 1;
 
   function changeValidityFilter(event) {
-    setValidityFilter(event.target.value);
-    setPage(1);
+    patchHistory({ validityFilter: event.target.value, page: 1, selectedReadingId: null });
   }
 
   return (
@@ -154,6 +155,8 @@ export function TelemetryHistoryPanel({
             unit={history.unit}
             expectedMinimum={expectedMinimum}
             expectedMaximum={expectedMaximum}
+            selectedReadingId={selectedReadingId}
+            onSelectReading={(selectedReadingId) => patchHistory({ selectedReadingId })}
           />
 
             <div className="telemetry-table-wrapper">
@@ -217,7 +220,7 @@ export function TelemetryHistoryPanel({
                   className="secondary-button"
                   disabled={page <= 1}
                   onClick={() =>
-                    setPage((current) => Math.max(1, current - 1))
+                    patchHistory({ page: Math.max(1, page - 1), selectedReadingId: null })
                   }
                 >
                   Previous
@@ -228,9 +231,7 @@ export function TelemetryHistoryPanel({
                   className="secondary-button"
                   disabled={page >= pageCount}
                   onClick={() =>
-                    setPage((current) =>
-                      Math.min(pageCount, current + 1)
-                    )
+                    patchHistory({ page: Math.min(pageCount, page + 1), selectedReadingId: null })
                   }
                 >
                   Next

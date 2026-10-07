@@ -1,5 +1,5 @@
-﻿import { SensorHealthOverview } from "./SensorHealthOverview";
-import { useState } from "react";
+import { SensorHealthOverview } from "./SensorHealthOverview";
+import { useWorkspaceState } from "../../state/useWorkspaceState.js";
 import {
   SENSOR_CATEGORIES,
   getSensorCategoryLabel,
@@ -10,12 +10,16 @@ import { SensorRegistration } from "./SensorRegistration";
 import { useSensorDirectory } from "./useSensorDirectory";
 
 export function SensorDirectory({ onBack }) {
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
-  const [deploymentNodeId, setDeploymentNodeId] = useState("");
-  const [selectedSensorId, setSelectedSensorId] = useState(null);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(null);
+  const { state, dispatch } = useWorkspaceState();
+  const { search, category, deploymentNodeId, selectedSensorId,
+    isRegistering, successMessage } = state.telemetry;
+  const patch = (values) => dispatch({ type: "telemetry/patch", patch: values });
+  const setSearch = (search) => patch({ search });
+  const setCategory = (category) => patch({ category });
+  const setDeploymentNodeId = (deploymentNodeId) => patch({ deploymentNodeId });
+  const setSelectedSensorId = (selectedSensorId) => patch({ selectedSensorId });
+  const setIsRegistering = (isRegistering) => patch({ isRegistering });
+  const setSuccessMessage = (successMessage) => patch({ successMessage });
 
   const {
     sensors,
@@ -34,8 +38,12 @@ export function SensorDirectory({ onBack }) {
       <main className="app-shell sensor-workspace">
         <SensorRegistration
           locations={locations}
-          onCancel={() => setIsRegistering(false)}
+          onCancel={() => {
+            setIsRegistering(false);
+            dispatch({ type: "registration/reset" });
+          }}
           onRegistered={(sensor) => {
+            dispatch({ type: "registration/reset" });
             setIsRegistering(false);
             setSuccessMessage(
               `${sensor.friendlyName} was registered successfully.`,
@@ -52,6 +60,7 @@ export function SensorDirectory({ onBack }) {
     return (
       <main className="app-shell sensor-workspace">
         <SensorDetail
+          key={selectedSensorId}
           sensorId={selectedSensorId}
           successMessage={successMessage}
           onBack={() => {
@@ -76,7 +85,7 @@ export function SensorDirectory({ onBack }) {
         </div>
 
         <button type="button" className="secondary-button" onClick={onBack}>
-          Back to startup
+          Back to Home
         </button>
       </header>
 

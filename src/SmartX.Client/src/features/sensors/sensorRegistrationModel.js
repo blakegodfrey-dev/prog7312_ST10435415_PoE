@@ -1,4 +1,4 @@
-﻿const MAC_ADDRESS_PATTERN =
+const MAC_ADDRESS_PATTERN =
   /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
 export const INITIAL_SENSOR_FORM = Object.freeze({
@@ -52,6 +52,10 @@ export function validateSensorForm(form) {
   if (!form.deploymentNodeId) {
     errors.deploymentNodeId = "Select a deployment location.";
   }
+
+  // Disabled numeric fields must not block a Boolean sensor after a type
+  // switch; its API request deliberately carries null numeric bounds.
+  if (form.valueKind === "Boolean") return errors;
 
   const minimum = parseOptionalNumber(form.expectedMinimum);
   const maximum = parseOptionalNumber(form.expectedMaximum);

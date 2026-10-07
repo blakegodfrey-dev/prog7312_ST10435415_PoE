@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { telemetryApi } from "../../api/telemetryApi";
 
 export function useSensorTelemetry({
@@ -42,10 +42,12 @@ export function useSensorTelemetry({
           }),
         ]);
 
+        if (controller.signal.aborted) return;
+
         setHistory(historyResult);
         setConnectionStatus(statusResult);
       } catch (requestError) {
-        if (requestError?.name !== "AbortError") {
+        if (!controller.signal.aborted && requestError?.name !== "AbortError") {
           setError(requestError);
         }
       } finally {

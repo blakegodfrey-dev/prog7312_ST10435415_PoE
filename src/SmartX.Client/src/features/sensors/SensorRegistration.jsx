@@ -1,9 +1,9 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import {
   SENSOR_CATEGORIES,
   TELEMETRY_VALUE_KINDS,
 } from "../../api/sensorOptions";
-import { INITIAL_SENSOR_FORM } from "./sensorRegistrationModel";
+import { useWorkspaceState } from "../../state/useWorkspaceState.js";
 import { useSensorRegistration } from "./useSensorRegistration";
 
 function FieldError({ id, message }) {
@@ -25,7 +25,8 @@ export function SensorRegistration({
   onCancel,
   onRegistered,
 }) {
-  const [form, setForm] = useState({ ...INITIAL_SENSOR_FORM });
+  const { state, dispatch } = useWorkspaceState();
+  const form = state.telemetry.registrationForm;
   const [validationErrors, setValidationErrors] = useState({});
 
   const {
@@ -38,10 +39,7 @@ export function SensorRegistration({
   function updateField(event) {
     const { name, value } = event.target;
 
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    dispatch({ type: "registration/patch", patch: { [name]: value } });
 
     setValidationErrors((current) => ({
       ...current,
