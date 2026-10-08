@@ -1,537 +1,229 @@
-# Smart-X IoT Mesh Ecosystem - Parts 1 and 2
+# Smart-X IoT Mesh Ecosystem — Parts 1 and 2
 
 Student number: **ST10435415**
-Module: **PROG7312 / AAPD7112 - Programming 3B / Advanced Application Development**
+Module: **PROG7312 / AAPD7112 — Programming 3B / Advanced Application Development**
 
-Smart-X is a simulated IoT data-ingestion and validation gateway for a South African smart hydroponic facility. It registers typed sensors, receives and validates high-volume telemetry, stores data in SQL Server, manages sensor attachments, and helps a developer identify abnormal readings and disconnected devices.
+Smart-X simulates a South African hydroponic facility whose environmental sensors, power meters and ESP32 actuators communicate with a .NET 10 gateway through HTTP. React displays native telemetry, contextual anomalies, connection health, operational commands and suggestions learned from operator behaviour. SQL Server stores the durable records.
 
-## Current implementation scope
+## Implemented scope
 
-The startup interface presents the three planned Smart-X pillars:
-
-| Pillar | Current status |
+| Home module | Status |
 |---|---|
 | Sensor Data Ingestion and Telemetry | Implemented and enabled |
-| Real-Time Command Stream and History | Enabled; retained workspace shell plus Package 2 live-registry/history APIs |
-| Network Topology and Mesh Routing | Visible but disabled until the final PoE |
+| Real-Time Command Stream and History | Implemented and enabled |
+| Network Topology and Mesh Routing | Visible and disabled; reserved for the final PoE |
 
-The complete Part 1 ingestion module remains in place. Part 2 is being added in seven packages. Packages 1 and 2 provide navigation, retained state, the Command Stream shell and live-registry/history APIs. Operational dashboard data and controls are connected in later packages. Topology remains final-PoE work.
+Part 1 registration, typed ingestion, deployment validation, attachments and anomaly investigation are retained. Part 2 adds FIFO and priority processing, a live device registry, ordered recent history, unique incidents and recovery, acknowledged commands, Stack-backed Undo, and learned suggestions. Module navigation preserves filters, selections and registration drafts within the current browser application session.
 
-## Main capabilities
+## Setup
 
-- Register sensors using a unique MAC address, friendly name, category, measured property, telemetry type, unit, expected range and Node-level deployment location.
-- Receive strongly typed `float`, `int` and `bool` readings through separate API routes.
-- Validate readings against the registered sensor type and expected range.
-- Store sensors, deployment nodes, telemetry and attachment metadata in SQL Server through Entity Framework Core.
-- Process mixed telemetry batches atomically, with a maximum of 500 readings per request.
-- Upload configuration files, deployment photographs and hardware logs against a specific sensor.
-- Display sensor search, filtering, profiles, telemetry history, timestamps, units and connection status.
-- Present connected, stale, disconnected, no-data and invalid fleet information.
-- Plot telemetry with a labelled expected-range band and selectable anomaly markers.
-- Return structured HTTP errors with suitable `400`, `404`, `409` and `413` statuses.
-- Resolve registered devices through a canonical MAC dictionary and retain a bounded, timestamp-ordered recent telemetry window, with full history remaining in SQL.
+Required: .NET 10 SDK, Node.js **22.12 or later in the 22.x line, or a supported newer release**, npm, Git, and SQL Server Express LocalDB (`MSSQLLocalDB`) or another configured SQL Server. Use `npm.cmd` in Windows PowerShell to avoid the `npm.ps1` execution-policy issue.
 
-## Architecture
-
-```text
-React client (:5173)
-        |
-        | HTTP/JSON and multipart requests
-        v
-ASP.NET Core .NET 10 API (:5075)
-        |
-        +--> Application and domain rules
-        |
-        +--> Entity Framework Core --> SQL Server LocalDB
-        |
-        +--> Protected local attachment storage
-```
-
-The React client never connects directly to SQL Server or the attachment directory. Controllers handle HTTP concerns, application/domain code owns processing rules, and infrastructure code owns database and file-system access.
-
-## Repository structure
-
-| Path | Responsibility |
-|---|---|
-| `SmartX.sln` | Groups the .NET projects |
-| `src/SmartX.Domain` | Sensors, deployment hierarchy, typed telemetry and core validation rules |
-| `src/SmartX.Application` | Telemetry processing and application-level behaviour |
-| `src/SmartX.Infrastructure` | EF Core persistence, SQL Server seed data and attachment storage |
-| `src/SmartX.Api` | Controller-based HTTP API, configuration, filters and OpenAPI |
-| `src/SmartX.Client` | React 19 and Vite dashboard |
-| `tests/SmartX.Tests` | Domain, application, infrastructure and API tests |
-
-## Prerequisites
-
-Install the following before running the project:
-
-- .NET 10 SDK
-- Node.js 20.19+ or 22.12+ and npm (Package 1 checked with Node.js 24.19.0)
-- SQL Server Express LocalDB (`MSSQLLocalDB`) or another configured SQL Server instance
-- EF Core command-line tool version 10 (`dotnet-ef`)
-- Git
-
-Confirm the main tools:
+Run from the repository root:
 
 ```powershell
-dotnet --version
-dotnet ef --version
-node --version
-npm.cmd --version
-```
+dotnet restore .\SmartX.sln
+dotnet build .\SmartX.sln -c Release --no-restore -t:Rebuild -warnaserror
+if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
 
-If `npm` is blocked by the PowerShell execution policy, use `npm.cmd` as shown throughout this guide. Changing the machine execution policy is not required.
+Push-Location .\src\SmartX.Client
+try {
+    npm.cmd ci
+    if ($LASTEXITCODE -ne 0) { throw "Client dependency installation failed." }
+} finally { Pop-Location }
 
-## Configuration
-
-The API uses normal ASP.NET Core configuration. Development settings and the SQL Server connection are read from the API configuration files and environment. Do not commit passwords, production connection strings or local secrets.
-
-The React client obtains its API base address from its Vite environment configuration. The supplied development configuration targets:
-
-```text
-http://localhost:5075
-```
-
-From the repository root, create the client configuration if it is missing:
-
-```powershell
 if (-not (Test-Path .\src\SmartX.Client\.env)) {
     Copy-Item .\src\SmartX.Client\.env.example .\src\SmartX.Client\.env
 }
 ```
 
-Restart Vite after changing this value. Local `.env` files must remain excluded from Git. API CORS currently permits `http://localhost:5173`; use that exact client origin. A Production API run needs an explicit `ConnectionStrings__SmartXDatabase` value because the supplied database configuration is Development-only.
+The client configuration must point to `http://localhost:5075`. CORS permits `http://localhost:5173`; use that browser origin.
 
-## Restore dependencies
+### Terminal 1: API and test database
+
+```powershell
+$env:ConnectionStrings__SmartXDatabase = "Server=(localdb)\MSSQLLocalDB;Database=SmartXTestDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+dotnet run --project .\src\SmartX.Api -c Release --no-build --launch-profile http
+```
+
+The HTTP launch profile selects Development. Development startup applies the committed EF Core migrations and seeds an empty deployment hierarchy. The baseline contains 9 deployment locations, 12 sensors and 3,456 historical typed readings, including deliberate anomalies. Existing deployment data is preserved. Use a separate test database because simulator scenarios register devices and persist readings, commands and interactions.
+
+Health: `http://localhost:5075/api/health`. OpenAPI JSON: `http://localhost:5075/openapi/v1.json`. A Swagger UI is not installed. For another SQL Server instance, change the environment connection string. Production requires explicit configuration and database preparation; Development seeding does not run there.
+
+### Terminal 2: React
+
+```powershell
+cd .\src\SmartX.Client
+npm.cmd run dev -- --host localhost --port 5173 --strictPort
+```
+
+Open **http://localhost:5173**. Restart Vite after changing `.env`.
+
+## Automated verification
 
 From the repository root:
 
 ```powershell
-dotnet restore .\SmartX.sln
-
-cd .\src\SmartX.Client
-npm.cmd install
-cd ..\..
+dotnet test .\SmartX.sln -c Release --no-build --no-restore
 ```
 
-For a reproducible install using the committed lock file, `npm.cmd ci` may be used instead of `npm.cmd install`.
-
-## Database setup
-
-Install the EF Core CLI if it is not already available:
-
-```powershell
-dotnet tool install --global dotnet-ef --version 10.*
-```
-
-Apply the committed migration from the repository root:
-
-```powershell
-dotnet ef database update `
-  --project .\src\SmartX.Infrastructure `
-  --startup-project .\src\SmartX.Api
-```
-
-The initial migration is `20260902131429_InitialCreate`. When the API starts in Development, it checks the database and creates the deterministic hydroponic seed dataset only when the deployment hierarchy is empty.
-
-The baseline seed contains:
-
-- 9 hierarchical deployment locations
-- 12 sensors across Environmental, Power Consumption and Actuator categories
-- 3,456 typed telemetry readings
-- deliberate invalid readings for anomaly demonstration
-
-## Run the application
-
-### 1. Start the API
-
-From the repository root:
-
-```powershell
-$env:ASPNETCORE_ENVIRONMENT = "Development"
-dotnet run --project .\src\SmartX.Api
-```
-
-The development API listens on:
-
-```text
-http://localhost:5075
-```
-
-Health endpoint:
-
-```text
-GET http://localhost:5075/api/health
-```
-
-OpenAPI document:
-
-```text
-GET http://localhost:5075/openapi/v1.json
-```
-
-The project exposes the OpenAPI JSON document but does not install a separate Swagger UI at `/swagger`.
-
-### 2. Start the React client
-
-Open a second PowerShell window:
-
-```powershell
-cd C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE\src\SmartX.Client
-npm.cmd run dev
-```
-
-Open the Vite address, normally:
-
-```text
-http://localhost:5173
-```
-
-## Build and test
-
-Run the .NET Release build and automated suite:
-
-```powershell
-cd C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE
-dotnet build .\SmartX.sln -c Release -warnaserror
-dotnet test .\SmartX.sln -c Release --no-restore
-```
-
-Run frontend checks:
-
-```powershell
-cd .\src\SmartX.Client
-npm.cmd run lint
-npm.cmd run build
-```
-
-Package 1 adds frontend tests:
+From `src/SmartX.Client`:
 
 ```powershell
 npm.cmd test
 npm.cmd run test:integration
+npm.cmd run lint
+npm.cmd run build
+npm.cmd audit
 ```
 
-These check the state model and render the actual React modules through Vite in JSDOM with controlled HTTP responses. They do not require SQL Server. Optional Chromium checks also exercise the UI in a browser:
+The integration suite renders React through Vite and JSDOM using controlled HTTP responses. Backend tests include real HTTP/controller tests with test persistence providers. These checks complement live SQL-backed scenarios; they do not all use SQL Server.
+
+An additional browser suite is available:
 
 ```powershell
 npx.cmd playwright install chromium
 npm.cmd run test:browser
 ```
 
-The browser tests start their own Vite instance on `127.0.0.1:4174` and intercept device API responses. Keep that port free. Neither test suite is a replacement for the live SQL-backed regression checklist.
+It starts its own Vite server on `127.0.0.1:4174`, intercepts API responses, and requires that port to be free. Its execution is not included in the 241-test result below.
 
-## Historical Part 1 Phase 6 results
+## Live Part 2 scenarios
 
-The following results were observed on 5 September 2026:
-
-| Check | Verified result |
-|---|---|
-| Complete automated suite | 137 passed, 0 failed, 0 skipped |
-| Targeted batch/security/status suite | 71 passed, 0 failed, 0 skipped |
-| React lint | Passed with no reported errors |
-| Vite production build | Passed; 41 modules transformed in 441 ms |
-| Valid sensor registration | Persisted and reopened successfully |
-| Duplicate MAC address | Rejected with `409 Conflict` |
-| Valid float reading | Stored as `Float` and marked valid |
-| Out-of-range float reading | Stored and marked invalid with an explanation |
-| Duplicate telemetry packet | Rejected with `409 Conflict` |
-| Wrong telemetry type | Rejected with `400 Bad Request` |
-| Unknown sensor | Rejected with `404 Not Found` |
-| Maximum bulk request | 500/500 readings stored atomically |
-| Oversized bulk request | 501 readings rejected; no partial save |
-| Live 500-reading measurement | 259,943-byte request in 1,829 ms, about 273 readings/second |
-| Allowed configuration attachment | Uploaded and listed against the correct sensor |
-| Unsupported `.exe` attachment | Rejected with an allowed-extension message |
-| API unavailable | React displayed an actionable connection error |
-| API recovery | Refresh succeeded without restarting React |
-
-Performance values are a local development measurement, not a universal benchmark or service-level guarantee.
-
-## API overview
-
-Important route groups include:
-
-| Area | Typical routes |
-|---|---|
-| Health | `GET /api/health` |
-| Sensors | Register, list and retrieve sensor profiles under `/api/sensors` |
-| Deployment | Retrieve valid deployment locations under `/api/deployment-nodes` |
-| Typed telemetry | `POST /api/Telemetry/float`, `/integer`, `/boolean` |
-| Bulk telemetry | `POST /api/Telemetry/bulk` |
-| History | `GET /api/Telemetry/sensors/{sensorId}` |
-| Diagnostics | `/api/telemetry/diagnostics/*` |
-| Live registry | `GET /api/live/devices`, `GET /api/live/devices/{macAddress}` |
-| Recent live history | `GET /api/live/history?macAddress=...&limit=100` |
-| Attachments | Sensor-specific list, upload, download and delete routes |
-
-Refer to `/openapi/v1.json` for the authoritative request/response schemas.
-
-## Engagement strategy
-
-The implemented strategy matches the Task 1 research choice: **Real-Time Anomaly Visualisation and Contextual Drill-Down**.
-
-The workflow is deliberately anomaly-first:
-
-1. The directory starts with fleet-health totals.
-2. Users identify connected, stale, disconnected and invalid sensors without reading raw rows.
-3. A sensor profile shows its typed history, unit and connection status.
-4. The compact trend chart overlays the configured expected range.
-5. Invalid points remain distinguishable through markers, labels and text, rather than colour alone.
-6. Selecting an anomaly exposes its value, timestamp, expected range and validation reason.
-
-Connection thresholds are server-owned:
-
-- Connected: latest reading no older than 5 minutes
-- Stale: older than 5 minutes but no older than 15 minutes
-- Disconnected: older than 15 minutes
-- No data: registered sensor with no reading
-
-Invalid status is diagnostic and may overlap a connection state.
-
-## Attachment security
-
-Attachments are linked to an existing sensor and are not stored in the React client or SQL binary columns. SQL Server retains useful metadata while file contents are stored through protected server-side storage.
-
-Controls include:
-
-- 5 MB maximum attachment size
-- 6 MB global request ceiling
-- purpose-specific extension and MIME-type checks
-- empty-file rejection
-- existing-sensor and ownership checks
-- generated safe storage names
-- no trust in user-supplied paths
-- controlled download and deletion
-- structured errors for invalid or oversized requests
-
-Supported purposes shown by the client:
-
-| Purpose | Extensions |
-|---|---|
-| Configuration file | `.json`, `.txt`, `.csv`, `.pdf` |
-| Deployment photo | `.png`, `.jpg`, `.jpeg` |
-| Hardware log | `.log`, `.txt`, `.csv` |
-
-## Assessed-concept traceability
-
-| Assessed concept | Smart-X use | Main implementation | Main tests |
-|---|---|---|---|
-| Generics | Preserves native float, integer and boolean telemetry without reducing values to strings | `TelemetryPacket<T>` in `SmartX.Domain`; type guard and processing in `SmartX.Application` | `TelemetryPacketTests`, `TelemetryPacketTypeGuardTests`, `TelemetryBatchProcessingTests` |
-| Operator overloading | Aggregates simultaneous smart-meter loads meaningfully | `PowerReading` and its overloaded `+` operator in `SmartX.Domain` | `PowerReadingTests` |
-| Advanced arrays and lists | Inspects variable-length raw sequential batches with a jagged array, then returns accepted packets in a `List<T>` | `RawTelemetryBatchProcessor` and telemetry batch processing in `SmartX.Application` | `RawTelemetryBatchProcessorTests`, `TelemetryBatchProcessingTests` |
-| Recursion | Validates Facility -> Zone -> Sub-zone -> Node hierarchies with a base case, depth protection and cycle detection | `DeploymentHierarchyValidator` in `SmartX.Domain` | `DeploymentHierarchyValidatorTests` |
-| Data structures and algorithms | Uses dictionaries/sets for efficient identity and cycle checks, lists for ordered results and paged database queries for history | Domain validation, batch processing, controllers and EF Core queries | Domain, application, bulk API and model test groups |
-
-Pointer types and unsafe code are deliberately excluded because the managed, generic implementation meets the Part 1 requirements without introducing unnecessary memory-safety risk.
-
-## Data structures and complexity
-
-Let `n` be the number of readings in a batch and `h` the deployment-tree height.
-
-| Operation | Structure/approach | Expected complexity | Reason |
-|---|---|---:|---|
-| Inspect a raw batch | Jagged array traversal | `O(n)` time | Every supplied reading must be inspected once |
-| Collect accepted readings | `List<T>` | `O(1)` amortised append, `O(n)` space | Preserves ordered validated output efficiently |
-| Resolve unique IDs | Hash-based lookup/set | `O(1)` average lookup, `O(n)` space | Efficient duplicate detection and sensor resolution |
-| Validate hierarchy | Recursive depth-first traversal | `O(n)` time, `O(h)` call stack | Each node is visited while the active path detects cycles |
-| Retrieve recent history | Indexed, ordered, paged EF query | Approximately `O(log n + k)` with a suitable index | Locates the ordered range and returns only page size `k` |
-| Find latest reading per sensor | Grouped/index-supported database query | Dependent on SQL plan; avoids loading all history into React | Keeps fleet evaluation on the server |
-
-Actual SQL performance depends on row counts, indexes, machine resources and the generated query plan.
-
-## User workflow
-
-1. Open Sensor Data Ingestion and Telemetry from the startup page.
-2. Review facility-health totals.
-3. Search or filter the sensor directory.
-4. Open a sensor to inspect its configuration, deployment location and history.
-5. Register a new sensor against a valid Node-level location when required.
-6. Submit typed readings through the API or bulk ingestion route.
-7. Refresh the sensor to view timestamps, units, validation state and trend.
-8. Select abnormal points for contextual investigation.
-9. Upload supporting configuration, deployment or hardware-log evidence.
-
-## Troubleshooting
-
-### `npm.ps1` cannot be loaded
-
-PowerShell may block script wrappers. Use:
+Keep the API running. Run scripts from the repository root in a third terminal. Every reading enters the HTTP API; the scenarios do not insert telemetry directly into SQL.
 
 ```powershell
-npm.cmd run dev
-npm.cmd run lint
-npm.cmd run build
+node .\scripts\simulate-operations.mjs http://localhost:5075 normal
+node .\scripts\simulate-operations.mjs http://localhost:5075 lifecycle
+node .\scripts\simulate-operations.mjs http://localhost:5075 learning
 ```
 
-### React reports that it cannot connect to the API
+| Scenario | Assertions |
+|---|---|
+| `normal` | Native float/integer/Boolean ingestion, preserved zero/false, acknowledged actuator command, Undo, wrong-type rejection and valid-reading recovery |
+| `lifecycle` | Repeated abnormal readings retain one incident ID; real timeout disconnects the device; heartbeat restores connection; range recovery clears the incident; recurrence creates a new ID |
+| `learning` | New target starts without learned recommendations; three matching historical actions produce a suggestion; subsequent conflicting behaviour changes the top action or its confidence |
 
-- Confirm the API is running on `http://localhost:5075`.
-- Call `http://localhost:5075/api/health` directly.
-- Check the Vite API base URL and CORS configuration.
-- Restart the API and use the client retry/refresh action.
+Each mode first performs the normal checks and registers three new simulation sensors. The final suffix identifies their names in the UI. `lifecycle` waits approximately **93 seconds** with the default disconnection threshold. After a simulator exits, devices naturally become stale and disconnected unless another process sends heartbeats.
 
-### Database connection or migration fails
+### FIFO backlog and critical priority bypass
 
-- Confirm SQL Server LocalDB is installed and running.
-- Check the development connection string.
-- Run `dotnet ef database update` with both project arguments shown above.
-- Confirm the installed `dotnet-ef` major version matches .NET/EF Core 10.
-
-### `/swagger` returns 404
-
-This project exposes OpenAPI JSON without a separate Swagger UI. Use:
-
-```text
-http://localhost:5075/openapi/v1.json
-```
-
-### HTTPS redirection warning during local HTTP development
-
-The API may warn that it cannot determine an HTTPS port while using the configured HTTP development URL. This does not prevent `http://localhost:5075` from serving the application.
-
-### Seed data does not appear
-
-The Development seed is designed to avoid duplicating an existing hierarchy. Confirm the environment is `Development` and check whether the configured database already contains deployment records.
-
-## Current limitations
-
-- Devices and telemetry are simulated; physical ESP32 hardware is optional and not included.
-- The dashboard uses request/refresh interactions rather than WebSockets.
-- The React client does not provide a manual telemetry-ingestion form; simulated devices use the API.
-- Command Stream navigation, retained state and its shell are enabled; live registry/history APIs are implemented. Queues, incidents, commands/Undo, dashboard integration and learned suggestions are developed in Packages 3-7.
-- Network Topology and Mesh Routing remains deferred to the final PoE.
-- Local attachment storage is suitable for this assessment environment and can later be replaced by managed cloud/object storage.
-
-## Submission checks
-
-Before submitting:
+Stop the API with Ctrl+C. In the same API terminal, retain the test database configuration and start with a temporary 100 ms processing delay:
 
 ```powershell
-cd C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE
-
-dotnet build .\SmartX.sln -c Release -warnaserror
-dotnet test .\SmartX.sln -c Release --no-restore
-
-cd .\src\SmartX.Client
-npm.cmd run lint
-npm.cmd run build
-
-cd ..\..
-git diff --check
-git status --short
+$env:Operations__ProcessingDelayMilliseconds = "100"
+dotnet run --project .\src\SmartX.Api -c Release --no-build --launch-profile http
 ```
 
-Confirm that no secrets, local `.env` files, database files, uploaded test files, `bin`, `obj`, `node_modules` or generated `dist` output are staged. Commit meaningful source and documentation changes, push them to GitHub, and verify that the remote repository contains the final commit.
-
-
-## Part 2 Package 1: navigation and stability
-
-Use the consistent **Home / Telemetry / Command Stream** navigation at any depth in the Telemetry module, including sensor details and registration. Module changes use the existing App-based view selection and React rendering, without a router dependency or browser reload.
-
-A small React Context/reducer above the modules retains:
-
-- Telemetry search, category, location, selected sensor, registration draft and submission status.
-- History validity, page and selected anomaly independently for each sensor.
-- Command Stream search, category, alert filter, selected-device slot and history-view choice.
-
-Modules unmount when inactive. Their read requests are aborted, and late results are ignored before updating state. On return, the saved view choices are reused and API data is requested again. A submitted registration continues through the normal API request; its pending status prevents a second submission on returning, and success updates the Telemetry selection without changing the currently active module.
-
-State lasts for the current application session. A browser reload resets UI choices. Uploaded files remain on the server; an unsubmitted browser file selection is not retained across module changes.
-
-The shell contains Live devices, Selected device, Active alerts, Processing status, Command history and Telemetry history sections. Its filters currently retain choices; data filtering becomes functional when live data is connected. Command and Undo controls are visibly unavailable until the command workflow is implemented. No operational counters or live readings are invented for this phase.
-
-Three focused Part 1 fixes accompany the navigation:
-
-1. Invalid chart markers now open their investigation details by click or keyboard.
-2. Null expected bounds no longer become a misleading zero-to-zero chart band.
-3. Switching registration to Boolean ignores disabled numeric range fields, consistent with the existing null-bound API contract.
-
-### Package 1 verification, 7 October 2026
-
-Package 1 was rebuilt and reverified from `prog7312-IoT(3).zip` for `C:\Dev\prog7312-IoT_2\prog7312_ST10435415_PoE`. This is the restart baseline for the seven-package sequence. No earlier Part 2 package is needed.
-
-| Check | Result in the package preparation environment |
-|---|---|
-| Frontend state/registration tests | 11 passed |
-| Rendered React navigation/stability tests | 9 passed |
-| Existing .NET regression suite | 137 passed, 0 failed, 0 skipped |
-| .NET 10 Release solution build with warnings as errors | Passed; 0 warnings, 0 errors |
-| ESLint | Passed |
-| Vite production build | Passed; 47 modules |
-| API startup and health | Started in Production; 100 health requests using 8 concurrent callers succeeded; healthy after navigation tests |
-| Chromium browser suite | Included, not executed: browser download unavailable in this environment |
-| SQL Server/LocalDB end-to-end UI regression | Requires the local verification checklist |
-
-The .NET checks used SDK 10.0.401 and serial MSBuild (`-m:1 -p:UseSharedCompilation=false`) because compiler/build-server IPC was unavailable here. Backend source, API contracts, migrations and existing backend tests are byte-for-byte unchanged from the supplied Part 1 source. The live API smoke check used its health endpoint without SQL I/O; the rendered React tests use controlled device responses. These checks do not claim live SQL ingestion, attachments or load testing.
-
-Package 1 installation and commit groups were supplied inside `blake_1.zip`. See the retained [Package 1 verification and traceability](docs/part2/Package_1_Verification.md) for its demonstration and local regression checklist.
-
-### Remaining Part 2 packages
-
-| Package | Scope |
-|---|---|
-| `blake_3` | FIFO/priority telemetry buffers and background processing |
-| `blake_4` | Unique incidents, recovery and heartbeat/connection lifecycle |
-| `blake_5` | Persisted commands, acknowledgement and Stack-backed Undo |
-| `blake_6` | Complete operational dashboard and deterministic simulator scenarios |
-| `blake_7` | Persisted user history, learned suggestions and final traceability/regression |
-
-No database migration is required for Package 1. Existing database and seed setup remains as documented above. Part 2's 30-mark navigation criterion concerns the final integrated application; this package establishes its navigation/state foundation, rather than claiming a completed 100-mark Part 2 submission.
-
-
-## Part 2 Package 2: live registry and ordered recent history
-
-Package 2 adds an immutable device snapshot registry backed by `Dictionary<string, DeviceSnapshot>`, using the same trimmed, uppercase colon-separated MAC format as Part 1. An ID-to-MAC dictionary preserves the existing GUID-based ingestion contracts. Single and bulk ingestion resolve configurations through these dictionaries; their native float/integer/Boolean routes and responses stay compatible.
-
-The first live request or ingestion hydrates the shared store from registered SQL devices, each device's latest persisted reading and maximum persisted received timestamp, and a bounded recent window. Registered devices without readings remain visible. Initialization is asynchronous, serialized and retryable after failure. API registrations merge into the store after their SQL save succeeds.
-
-Committed readings enter `SortedDictionary<DateTimeOffset, List<TelemetrySnapshot>>`. The list preserves separate reading IDs at the same UTC instant. Readings are returned in ascending recorded-time order, with received time and canonical reading-ID text breaking ties. A late older reading does not replace a newer current value. The cache updates after successful SQL persistence; invalid batches and failed saves publish no new committed readings.
-
-`LiveTelemetry:RecentHistoryCapacity` in `src/SmartX.Api/appsettings.json` defaults to **2,000 readings globally**, with an allowed range of 1-100,000. Retention removes the chronologically oldest records, including individual entries in a large equal-time bucket. Device latest snapshots survive history eviction. Restart the API after changing capacity.
-
-| Endpoint | Result |
-|---|---|
-| `GET /api/live/devices` | Registered-device snapshots, including devices with no telemetry |
-| `GET /api/live/devices/{macAddress}` | Canonical MAC lookup; malformed MAC is 400, unregistered MAC is 404 |
-| `GET /api/live/history` | Most recent matching retained readings, presented chronologically |
-| `GET /api/live/history?macAddress=A4%3ACF%3A12%3A8B%3A40%3A01&limit=100` | Recent readings for one registered MAC |
-| `GET /api/telemetry/sensors/{sensorId}` | Existing paged full/older SQL history, unchanged |
-
-Recent history accepts `limit` (1-500), inclusive `fromUtc` and `toUtc`, and an optional MAC filter. Its `source` is `RecentMemory`; `retainedCount` and oldest/newest timestamps describe the global memory window. `matchingCount` counts matching retained readings before the limit. `isLimited` describes the requested limit, not the existence of older SQL data. This endpoint never claims to return complete historical data.
-
-`lastReceivedAtUtc` is the maximum **persisted telemetry received timestamp**, which the existing simulation contract can supply. It is not new gateway heartbeat evidence or a connection-state verdict; those are Package 4 work. Latest value is selected by recorded time independently of this received timestamp.
-
-### Demonstrate Package 2
-
-Start the API in Development against your existing SQL database using the setup above, then run from the repository root:
+Run in the third terminal:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-LiveRegistry.ps1
+node .\scripts\simulate-operations.mjs http://localhost:5075 priority
 ```
 
-This script submits four to six deterministic native readings through the existing bulk HTTP route, including out-of-order and same-timestamp records, then checks MAC lookup and ordered history. It adds simulation readings to SQL and does not reset the database. Run against a quiet local API with capacity at least 6.
+The script sends 40 concurrent ordinary readings, observes a backlog, then submits a critical power reading. It asserts that the critical packet finishes while ordinary packets still wait, verifies the critical incident, and submits a normal recovery value. Ordinary packets use FIFO order. Critical work bypasses waiting ordinary work; it does not interrupt an in-flight database write.
 
-Focused collection, persistence and HTTP checks:
+The queue capacity must be at least 100; the default is 5,000. After the demonstration, stop the API, remove the temporary delay, and restart:
 
 ```powershell
-dotnet test .\SmartX.sln -c Release --filter 'FullyQualifiedName~SmartX.Tests.Live'
+Remove-Item Env:\Operations__ProcessingDelayMilliseconds -ErrorAction SilentlyContinue
+dotnet run --project .\src\SmartX.Api -c Release --no-build --launch-profile http
 ```
 
-### Package 2 verification, 7 October 2026
+### MAC dictionary lookup and ordered history
 
-| Check | Preparation result |
+With the API running, select one registered device and resolve its lowercase MAC through the live endpoint:
+
+```powershell
+$devices = Invoke-RestMethod "http://localhost:5075/api/live/devices"
+$device = $devices | Select-Object -First 1
+if (-not $device) { throw "Register a device first." }
+$mac = [uri]::EscapeDataString($device.macAddress.ToLowerInvariant())
+$resolved = Invoke-RestMethod "http://localhost:5075/api/live/devices/$mac"
+if ($resolved.id -ne $device.id) { throw "MAC lookup returned the wrong device." }
+$history = Invoke-RestMethod "http://localhost:5075/api/live/history?macAddress=$mac&limit=100"
+$history.readings | Format-Table recordedAtUtc, valueKind, floatValue, integerValue, booleanValue
+```
+
+Canonical MACs key a `Dictionary<string, DeviceSnapshot>`, with an ID-to-MAC dictionary for GUID ingestion routes. Lookups have expected O(1) complexity; the HTTP/database response time is not claimed to be constant. Run collection regression tests from the repository root:
+
+```powershell
+dotnet test .\SmartX.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~SmartX.Tests.Live'
+```
+
+The live tests cover registry lookup, initialization, chronological ordering, equal-timestamp records, out-of-order arrivals and bounded retention. Recent history uses `SortedDictionary<DateTimeOffset, List<TelemetrySnapshot>>`; each timestamp bucket preserves separate packet IDs. The newest recorded reading remains current when an older reading arrives later.
+
+Recent memory defaults to **2,000 readings globally**, with a maximum response limit of **500**. Full paged SQL history remains available in Telemetry. Queue and recent-history limits are configured separately in `src/SmartX.Api/appsettings.json`.
+
+## Connection health and command rules
+
+Connection health uses **actual gateway contact**, including heartbeats, rather than the sensor's recorded measurement timestamp. Default thresholds are:
+
+| Time since gateway contact | State |
 |---|---|
-| Full .NET regression suite | 184 passed: original 137 plus 47 Package 2 cases; 0 failed/skipped |
-| Release build with warnings as errors | Passed; 0 warnings/errors |
-| Frontend unit and rendered navigation tests | 11 + 9 passed |
-| Frontend lint and production build | Passed |
-| Real HTTP registration, bulk ingestion, MAC lookup and bounded history | Passed using Kestrel and EF InMemory persistence |
-| Actual hydration queries through the SQL Server provider | Translated successfully without a database connection |
-| Windows installer/demo and live SQL Server execution | Requires local verification |
+| Less than 30 seconds | Connected |
+| 30 seconds to less than 90 seconds | Stale |
+| 90 seconds or more | Disconnected |
+| No known gateway contact | Unknown |
 
-The HTTP check exercises production service lifetimes and actual API controllers, replacing only the persistence provider. SQL translation checks do not claim live SQL execution or measured lookup/timeline latency. The frontend is byte-for-byte unchanged from Package 1; its operational Command Stream panels are connected later.
+The monitor scans every 5 seconds; browser operational health refreshes periodically. Recorded time and gateway last-seen time are displayed separately. A device with no readings retains a missing value, not an invented zero. Invalid reading totals can overlap connection states. Seeded historical readings are not evidence of current gateway connectivity.
 
-The store supports one API process and writes through this API. Direct SQL edits or another API instance require a restart to rebuild this process's cache. Publication follows SQL commit without a distributed transaction; a process restart rebuilds committed state from SQL.
+Commands require a connected Boolean Actuator with a valid known state. Only acknowledged, durably committed manual commands enter the Undo Stack. Undo targets the latest eligible successful command and validates current device state and availability before reverting it. The eligible Stack is reconstructed from SQL command history after restart. This is a simulated ESP32 acknowledgement, not a physical hardware claim.
 
-Use [BLAKE_2_INSTRUCTIONS.md](BLAKE_2_INSTRUCTIONS.md) for installation and five genuine commit groups, and [Package 2 verification](docs/part2/Package_2_Verification.md) for test coverage, complexity and the local checklist. No database migration or new dependency is required.
+## Learned actions
+
+The recommendation engine groups distinct persisted searches/views and successful manual commands by telemetry context, target and action. It learns conditional frequencies, requiring at least **three matching observations** and **60% confidence**. Ranking uses confidence multiplied by `log(1 + support)`; only the highest-ranked action per device is returned. Failed commands and Undo do not train successful manual-action patterns.
+
+Suggested Actions shows evidence counts, confidence and contextual reasons. Command recommendations require operator approval. Inspection recommendations open the device. Unavailable targets and commands that would repeat the current actuator state are excluded. This is a frequency-based learning algorithm, not a trained neural model or a promise to predict future faults.
+
+## Attachments and diagnostic notes
+
+Incident labels and diagnostic notes persist against the incident. Per-sensor attachments support configuration files (`.json`, `.txt`, `.csv`, `.pdf`), deployment photos (`.png`, `.jpg`, `.jpeg`) and hardware logs (`.log`, `.txt`, `.csv`). Maximum file size is **5 MB**. Metadata is stored in SQL; file contents use protected local storage with generated names and controlled download/delete routes. File selections are not retained across module unmounts.
+
+## Assessed implementation
+
+| Concept | Implementation |
+|---|---|
+| Part 1 generics, operators, arrays/lists and recursion | `TelemetryPacket<T>`, `PowerReading`, raw batch processing and deployment hierarchy validation |
+| FIFO and priority queues | `src/SmartX.Application/Operations/TelemetryWorkQueue.cs` |
+| Command Stack and durable Undo | `src/SmartX.Infrastructure/Operations/CommandService.cs` |
+| MAC dictionaries and timestamp-sorted recent history | `src/SmartX.Application/Live/LiveTelemetryStore.cs` |
+| Unique active incidents and connection lifecycle | `src/SmartX.Application/Operations/IncidentTracker.cs` |
+| Learned recommendations | `src/SmartX.Application/Operations/SuggestionEngine.cs` |
+| Real-time operational UI | `src/SmartX.Client/src/features/commands/CommandStreamWorkspace.jsx` |
+
+## API entry points
+
+| Purpose | Route |
+|---|---|
+| Registration/directory | `/api/sensors` |
+| Deployment locations | `/api/deployment-nodes` |
+| Native telemetry | `/api/telemetry/float`, `/integer`, `/boolean` |
+| Atomic mixed batches | `/api/telemetry/bulk` |
+| Full sensor history | `/api/telemetry/sensors/{sensorId}` |
+| Live MAC registry/history | `/api/live/devices`, `/api/live/devices/{macAddress}`, `/api/live/history` |
+| Operational snapshot | `/api/operations/dashboard` |
+| Commands and Undo | `/api/operations/commands`, `/api/operations/undo` |
+| Heartbeat | `/api/operations/heartbeat/{sensorId}` |
+| Operator behaviour | `/api/operations/interactions` |
+
+Use the OpenAPI document for full contracts. Typed telemetry must contain an explicit `value`; missing/null values are rejected, while native `0` and `false` are accepted.
+
+## Verification and submission
+
+The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; see [Testing summary](docs/part2/Testing_Summary.md).
+
+See [Demo checklist](docs/part2/Demo_Checklist.md) for the recording plan. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. Network topology remains final-PoE scope. Hardware and Docker are optional.
+
+Before submission, review `git diff --check`, `git status --short` and the staged diff. Keep local `.env`, credentials, SQL database files, uploaded files, `bin`, `obj`, `node_modules` and `dist` out of source commits. Push the final reviewed changes, verify the remote commit, and record its hash alongside test evidence and the demo URL. The current test results are not yet tied to a supplied final commit hash.
+
+## Practical limits and troubleshooting
+
+- One API process owns the live cache and queues. Direct SQL edits or another API writer require cache reinitialization; distributed gateway coordination is outside this assignment.
+- The React UI uses asynchronous polling and requests rather than WebSockets. Browser reload resets workspace choices; server records persist.
+- Simulators supply telemetry through HTTP; the UI does not include a manual telemetry-entry form.
+- If an extracted patch appears ignored by incremental builds, force the Release rebuild shown above before using `--no-build`.
+- If SQL startup fails, check LocalDB availability and the configured connection string. Development startup applies migrations automatically; an optional EF CLI workflow requires `dotnet-ef` version 10.
+- If a command is disabled, confirm Actuator category, **On or off** value type, a valid Boolean reading, and current gateway heartbeats. A recorded reading alone does not keep a device connected indefinitely.
+- If the API is unavailable, navigation remains usable; restart it and use Retry. Confirm the API URL, client `.env` and exact CORS origin.
+- The original `Send-DemoTelemetry.ps1` predates gateway-contact health. Old recorded timestamps alone do not create Stale status; use the lifecycle scenario or stop heartbeats to demonstrate timeouts.
