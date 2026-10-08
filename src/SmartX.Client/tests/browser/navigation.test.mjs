@@ -86,7 +86,7 @@ async function fixture(t, options = {}) {
     if (path === '/api/operations/dashboard') return json({ devices: [], activeIncidents: [], events: [], processing: {}, undoCount: 0, commands: [], history: [], suggestions: [], recentCapacity: 2000 });
     if (path === '/api/health') return json({ status: 'Healthy' });
     if (path === '/api/deployment-nodes') return json([location]);
-    if (path === '/api/telemetry/diagnostics/health-summary') return json({ totalSensorCount: 3, connectedSensorCount: 3, staleSensorCount: 0, disconnectedSensorCount: 0, invalidLatestReadingCount: 1, noDataSensorCount: 0, connectedThresholdMinutes: 5, disconnectedThresholdMinutes: 15, evaluatedAtUtc: '2026-10-07T09:00:00Z' });
+    if (path === '/api/telemetry/diagnostics/health-summary') return json({ totalSensorCount: 3, connectedSensorCount: 3, staleSensorCount: 0, disconnectedSensorCount: 0, invalidLatestReadingCount: 1, noDataSensorCount: 0, connectedThresholdMinutes: .5, disconnectedThresholdMinutes: 1.5, staleSeconds: 30, disconnectedSeconds: 90, unknownSensorCount: 0, evaluatedAtUtc: '2026-10-07T09:00:00Z' });
     if (path === '/api/sensors' && request.method() === 'POST') {
       const body = request.postDataJSON();
       const sensor = { ...body, deploymentLocation: location };
@@ -99,7 +99,7 @@ async function fixture(t, options = {}) {
       const deployment = url.searchParams.get('deploymentNodeId');
       return json([...sensors, ...registered].filter((sensor) => (!query || `${sensor.friendlyName} ${sensor.macAddress} ${sensor.measuredProperty}`.toLowerCase().includes(query)) && (!category || sensor.category === category) && (!deployment || sensor.deploymentLocation.id === deployment)));
     }
-    if (path.endsWith('/connection-status')) return json({ status: 'Connected', lastRecordedAtUtc: '2026-10-07T09:00:00Z', connectedThresholdMinutes: 5, disconnectedThresholdMinutes: 15 });
+    if (path.endsWith('/connection-status')) return json({ status: 'Connected', lastSeenAtUtc: '2026-10-07T09:00:01Z', lastRecordedAtUtc: '2026-10-07T09:00:00Z', connectedThresholdMinutes: .5, disconnectedThresholdMinutes: 1.5, staleSeconds: 30, disconnectedSeconds: 90, unknownSensorCount: 0 });
     if (path.startsWith('/api/telemetry/sensors/')) {
       const sensor = [...sensors, ...registered].find((item) => path.endsWith(`/${item.id}`));
       const pageNumber = Number(url.searchParams.get('page') ?? 1);

@@ -146,20 +146,12 @@ public sealed class ConnectionMonitor(IServiceScopeFactory scopes, LiveTelemetry
 {
     protected override async Task ExecuteAsync(CancellationToken token)
     {
-        var hydrated = false;
         while (!token.IsCancellationRequested)
         {
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
                 await scope.ServiceProvider.GetRequiredService<LiveTelemetryService>().EnsureInitializedAsync(token);
-                if (!hydrated)
-                {
-                    var db = scope.ServiceProvider.GetRequiredService<SmartXDbContext>();
-                    foreach (var receipt in await db.GatewayReceipts.AsNoTracking().ToListAsync(token)) incidents.RestoreSeen(receipt.SensorId, receipt.LastSeenAtUtc);
-                    foreach (var device in live.GetDevices()) incidents.ObserveReading(device);
-                    hydrated = true;
-                }
                 incidents.Sweep(live.GetDevices().Select(d => d.Id));
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }

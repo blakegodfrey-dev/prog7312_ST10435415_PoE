@@ -13,6 +13,22 @@ public sealed record Connection(Guid DeviceId, DateTimeOffset? LastSeenAtUtc, st
 public sealed class IncidentTracker(TimeProvider clock, TimeSpan staleAfter, TimeSpan disconnectedAfter)
 {
     private readonly object sync = new();
+    private readonly SemaphoreSlim initializationGate = new(1, 1);
+    private bool initialized;
+
+    public async Task EnsureInitializedAsync(Func<CancellationToken, Task> restore, CancellationToken token)
+    {
+        if (Volatile.Read(ref initialized)) return;
+        await initializationGate.WaitAsync(token);
+        try
+        {
+            if (initialized) return;
+            await restore(token);
+            Volatile.Write(ref initialized, true);
+        }
+        finally { initializationGate.Release(); }
+    }
+
     private readonly HashSet<IncidentKey> activeKeys = new();
     private readonly Dictionary<IncidentKey, Incident> active = new();
     private readonly Dictionary<Guid, DateTimeOffset> seen = new();

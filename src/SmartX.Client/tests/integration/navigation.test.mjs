@@ -70,7 +70,7 @@ beforeEach(async () => {
       return response({ status: 'Healthy' });
     }
     if (path === '/api/deployment-nodes') return response([location]);
-    if (path === '/api/telemetry/diagnostics/health-summary') return response({ totalSensorCount: 2, connectedSensorCount: 2, staleSensorCount: 0, disconnectedSensorCount: 0, invalidLatestReadingCount: 1, noDataSensorCount: 0, connectedThresholdMinutes: 5, disconnectedThresholdMinutes: 15, evaluatedAtUtc: '2026-10-07T09:00:00Z' });
+    if (path === '/api/telemetry/diagnostics/health-summary') return response({ totalSensorCount: 2, connectedSensorCount: 2, staleSensorCount: 0, disconnectedSensorCount: 0, invalidLatestReadingCount: 1, noDataSensorCount: 0, connectedThresholdMinutes: .5, disconnectedThresholdMinutes: 1.5, staleSeconds: 30, disconnectedSeconds: 90, unknownSensorCount: 0, evaluatedAtUtc: '2026-10-07T09:00:00Z' });
     if (path === '/api/sensors' && options.method === 'POST') {
       const result = { ...JSON.parse(options.body), deploymentLocation: location };
       registered.push(result);
@@ -80,7 +80,7 @@ beforeEach(async () => {
       const query = (url.searchParams.get('search') ?? '').toLowerCase();
       return response([sensor, power, ...registered].filter((item) => !query || item.friendlyName.toLowerCase().includes(query)));
     }
-    if (path.endsWith('/connection-status')) return response({ status: 'Connected', lastRecordedAtUtc: '2026-10-07T09:00:00Z', connectedThresholdMinutes: 5, disconnectedThresholdMinutes: 15 });
+    if (path.endsWith('/connection-status')) return response({ status: 'Connected', lastSeenAtUtc: '2026-10-07T09:00:01Z', lastRecordedAtUtc: '2026-10-07T09:00:00Z', connectedThresholdMinutes: .5, disconnectedThresholdMinutes: 1.5, staleSeconds: 30, disconnectedSeconds: 90, unknownSensorCount: 0 });
     if (path.startsWith('/api/telemetry/sensors/')) {
       const selected = [sensor, power, ...registered].find((item) => path.endsWith('/' + item.id));
       const page = Number(url.searchParams.get('page'));
@@ -385,4 +385,49 @@ test('Operational anomaly drill-down shows native zero, range context and missin
   assert.match(document.body.textContent, /Selected anomaly/);
   assert.match(document.body.textContent, /Below configured minimum/);
   assert.equal(document.querySelectorAll('.operation-incident').length, 1);
+});
+
+test('Telemetry health polls gateway status without resetting filters, page or selected anomaly', async () => {
+  let silent = false;
+  override = url => {
+    if (url.pathname.endsWith('/connection-status')) return response({
+      status: silent ? 'Disconnected' : 'Connected', lastRecordedAtUtc: '2026-10-07T09:00:00Z',
+      lastSeenAtUtc: '2026-10-07T09:00:01Z', staleSeconds: 30, disconnectedSeconds: 90 });
+  };
+  await openPh();
+  await input('Reading status', 'invalid');
+  await click('Next');
+  await waitUntil(() => document.querySelector('.pagination')?.textContent.includes('Page 2'));
+  await act(async () => document.querySelector('.chart-anomaly').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+  assert.ok(document.querySelector('.anomaly-details'));
+  assert.match(document.querySelector('.connection-summary').textContent, /Gateway last seen/);
+  assert.match(document.querySelector('.connection-summary').textContent, /Connected <30 s/);
+  silent = true;
+  await act(async () => delay(2100));
+  await waitUntil(() => document.querySelector('.connection-badge')?.textContent.trim() === 'Disconnected');
+  assert.equal(field('Reading status').value, 'invalid');
+  assert.match(document.querySelector('.pagination').textContent, /Page 2/);
+  assert.ok(document.querySelector('.anomaly-details'));
+  await navigate('Command Stream');
+  const count = requests.filter(r => r.url.pathname.endsWith('/connection-status')).length;
+  await act(async () => delay(2100));
+  assert.equal(requests.filter(r => r.url.pathname.endsWith('/connection-status')).length, count);
+});
+
+test('Facility health refreshes shared second-based thresholds without a manual reload', async () => {
+  let silent = false;
+  override = url => {
+    if (url.pathname === '/api/telemetry/diagnostics/health-summary') return response({
+      totalSensorCount: 2, connectedSensorCount: silent ? 0 : 2, staleSensorCount: 0,
+      disconnectedSensorCount: silent ? 2 : 0, invalidLatestReadingCount: 0,
+      noDataSensorCount: 0, unknownSensorCount: 0, staleSeconds: 30, disconnectedSeconds: 90 });
+  };
+  await navigate('Telemetry');
+  await waitUntil(() => document.querySelector('.health-card-connected .health-count')?.textContent === '2');
+  assert.match(document.querySelector('.health-card-connected').textContent, /30 seconds/);
+  assert.match(document.querySelector('.health-card-disconnected').textContent, /90 seconds/);
+  silent = true;
+  await act(async () => delay(2100));
+  await waitUntil(() => document.querySelector('.health-card-disconnected .health-count')?.textContent === '2');
+  assert.equal(document.querySelector('.health-card-connected .health-count').textContent, '0');
 });

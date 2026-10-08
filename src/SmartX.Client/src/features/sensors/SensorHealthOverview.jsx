@@ -26,21 +26,21 @@ export function SensorHealthOverview() {
           label: "Connected",
           code: "Live",
           count: summary.connectedSensorCount,
-          description: `Reported within ${summary.connectedThresholdMinutes} minutes.`,
+          description: `Gateway contact less than ${summary.staleSeconds} seconds ago.`,
         },
         {
           key: "stale",
           label: "Stale",
           code: "Aging",
           count: summary.staleSensorCount,
-          description: `Silent for ${summary.connectedThresholdMinutes}-${summary.disconnectedThresholdMinutes} minutes.`,
+          description: `Gateway silent for ${summary.staleSeconds}–${summary.disconnectedSeconds} seconds.`,
         },
         {
           key: "disconnected",
           label: "Disconnected",
           code: "Offline",
           count: summary.disconnectedSensorCount,
-          description: `No reading for more than ${summary.disconnectedThresholdMinutes} minutes.`,
+          description: `No gateway contact for at least ${summary.disconnectedSeconds} seconds.`,
         },
         {
           key: "invalid",
@@ -81,7 +81,7 @@ export function SensorHealthOverview() {
       {isLoading && (
         <div className="health-state" aria-live="polite">
           <strong>Checking sensor health</strong>
-          <span>Comparing the latest readings with connection thresholds.</span>
+          <span>Checking gateway contact against the shared connection thresholds.</span>
         </div>
       )}
 
@@ -133,6 +133,9 @@ export function SensorHealthOverview() {
             <p>
               <strong>{summary.noDataSensorCount}</strong> awaiting their first
               reading
+            </p>
+            <p>
+              <strong>{summary.unknownSensorCount}</strong> with unknown gateway contact
             </p>
             <p>
               Updated {formatEvaluationTime(summary.evaluatedAtUtc)}

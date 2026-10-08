@@ -19,11 +19,10 @@ export function useSensorTelemetry({
 
   useEffect(() => {
     const controller = new AbortController();
+    let timer;
 
-    async function loadTelemetry() {
-      setIsLoading(true);
-      setError(null);
-
+    async function loadTelemetry(initial = false) {
+      if (initial) { setIsLoading(true); setError(null); }
       try {
         const [historyResult, statusResult] = await Promise.all([
           telemetryApi.getHistory(
@@ -43,6 +42,7 @@ export function useSensorTelemetry({
         ]);
 
         if (controller.signal.aborted) return;
+        setError(null);
 
         setHistory(historyResult);
         setConnectionStatus(statusResult);
@@ -53,13 +53,14 @@ export function useSensorTelemetry({
       } finally {
         if (!controller.signal.aborted) {
           setIsLoading(false);
+          timer = setTimeout(loadTelemetry, 2000);
         }
       }
     }
 
-    loadTelemetry();
+    loadTelemetry(true);
 
-    return () => controller.abort();
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [
     sensorId,
     isValid,

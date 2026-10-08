@@ -143,9 +143,20 @@
   margin-bottom: 32px;
 }
 
+.workspace-header > div {
+  min-width: 0;
+}
+
 .workspace-header h1 {
   margin: 4px 0 0;
   font-size: clamp(2.25rem, 5vw, 4rem);
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+
+.workspace-header .hero-copy {
+  margin: 16px 0 0;
+  line-height: 1.5;
 }
 
 .secondary-button,

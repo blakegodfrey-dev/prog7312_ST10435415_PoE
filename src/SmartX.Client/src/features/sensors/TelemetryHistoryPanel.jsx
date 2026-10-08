@@ -90,9 +90,14 @@ export function TelemetryHistoryPanel({
               )}
             </strong>
           </span>
+          <span>
+            Gateway last seen:{" "}
+            <strong>{formatTelemetryTimestamp(connectionStatus.lastSeenAtUtc)}</strong>
+          </span>
           <small>
-            Connected ≤{connectionStatus.connectedThresholdMinutes} min ·
-            stale ≤{connectionStatus.disconnectedThresholdMinutes} min
+            Connected &lt;{connectionStatus.staleSeconds} s ·
+            stale &lt;{connectionStatus.disconnectedSeconds} s ·
+            disconnected ≥{connectionStatus.disconnectedSeconds} s
           </small>
         </div>
       )}

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartX.Application.Live;
+using SmartX.Application.Operations;
 using SmartX.Domain.Entities;
 using SmartX.Infrastructure.Persistence;
 using SmartX.Infrastructure.Persistence.Entities;
@@ -7,12 +8,23 @@ using SmartX.Infrastructure.Persistence.Entities;
 namespace SmartX.Infrastructure.Live;
 
 /// <summary>Scoped SQL reader/publisher around the process-wide committed store.</summary>
-public sealed class LiveTelemetryService(SmartXDbContext context, LiveTelemetryStore store)
+public sealed class LiveTelemetryService(SmartXDbContext context, LiveTelemetryStore store, IncidentTracker? incidents = null)
 {
     public LiveTelemetryStore Store { get; } = store;
 
-    public Task EnsureInitializedAsync(CancellationToken cancellationToken)
-        => Store.EnsureInitializedAsync(LoadSeedAsync, cancellationToken);
+    public async Task EnsureInitializedAsync(CancellationToken cancellationToken)
+    {
+        await Store.EnsureInitializedAsync(LoadSeedAsync, cancellationToken);
+        if (incidents is null) return;
+        // Every module restores the same durable gateway receipts before reading
+        // connection health. Client-supplied telemetry times are never heartbeats.
+        await incidents.EnsureInitializedAsync(async token =>
+        {
+            var receipts = await context.GatewayReceipts.AsNoTracking().ToListAsync(token);
+            foreach (var receipt in receipts) incidents.RestoreSeen(receipt.SensorId, receipt.LastSeenAtUtc);
+            foreach (var device in Store.GetDevices()) incidents.ObserveReading(device);
+        }, cancellationToken);
+    }
 
     public async Task<Sensor?> ResolveSensorAsync(Guid sensorId, CancellationToken cancellationToken)
     {

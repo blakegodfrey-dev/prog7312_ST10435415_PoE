@@ -13,17 +13,17 @@ export function useSensorHealthSummary() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let timer;
 
-    async function loadHealthSummary() {
-      setIsLoading(true);
-      setError(null);
-
+    async function loadHealthSummary(initial = false) {
+      if (initial) { setIsLoading(true); setError(null); }
       try {
         const result = await telemetryApi.getHealthSummary({
           signal: controller.signal,
         });
 
         if (controller.signal.aborted) return;
+        setError(null);
 
         setSummary(result);
       } catch (requestError) {
@@ -33,13 +33,14 @@ export function useSensorHealthSummary() {
       } finally {
         if (!controller.signal.aborted) {
           setIsLoading(false);
+          timer = setTimeout(loadHealthSummary, 2000);
         }
       }
     }
 
-    loadHealthSummary();
+    loadHealthSummary(true);
 
-    return () => controller.abort();
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [refreshKey]);
 
   return {
