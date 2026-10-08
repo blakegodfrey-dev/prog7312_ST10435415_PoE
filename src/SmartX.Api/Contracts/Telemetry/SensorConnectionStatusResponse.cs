@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using SmartX.Domain.Enums;
 
 namespace SmartX.Api.Contracts.Telemetry;
@@ -11,5 +11,9 @@ public sealed record SensorConnectionStatusResponse(
     DateTimeOffset? LastRecordedAtUtc,
     DateTimeOffset EvaluatedAtUtc,
     double? SecondsSinceLastReading,
-    int ConnectedThresholdMinutes,
-    int DisconnectedThresholdMinutes);
+    double ConnectedThresholdMinutes,
+    double DisconnectedThresholdMinutes,
+    DateTimeOffset? LastSeenAtUtc,
+    double? SecondsSinceGatewayContact,
+    double StaleSeconds,
+    double DisconnectedSeconds);

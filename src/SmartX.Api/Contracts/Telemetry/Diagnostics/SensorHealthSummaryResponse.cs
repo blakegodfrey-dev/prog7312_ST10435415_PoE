@@ -8,5 +8,8 @@ public sealed record SensorHealthSummaryResponse(
     int NoDataSensorCount,
     int InvalidLatestReadingCount,
     DateTimeOffset EvaluatedAtUtc,
-    int ConnectedThresholdMinutes,
-    int DisconnectedThresholdMinutes);
+    double ConnectedThresholdMinutes,
+    double DisconnectedThresholdMinutes,
+    double StaleSeconds,
+    double DisconnectedSeconds,
+    int UnknownSensorCount);

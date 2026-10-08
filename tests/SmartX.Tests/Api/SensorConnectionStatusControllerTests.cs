@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartX.Api.Contracts.Telemetry;
 using SmartX.Api.Controllers;
@@ -27,7 +27,7 @@ public sealed class SensorConnectionStatusControllerTests
     }
 
     [Fact]
-    public async Task Get_ReturnsNoDataForSensorWithoutTelemetry()
+    public async Task Get_ReturnsUnknownWithoutGatewayContact()
     {
         await using var context = CreateContext();
 
@@ -64,12 +64,16 @@ public sealed class SensorConnectionStatusControllerTests
             SensorConnectionStatusResponse>(ok.Value);
 
         Assert.Equal(sensor.Id, response.SensorId);
-        Assert.Equal(SensorConnectionStatus.NoData, response.Status);
+        Assert.Equal(SensorConnectionStatus.Unknown, response.Status);
         Assert.Null(response.LastRecordedAtUtc);
         Assert.Null(response.SecondsSinceLastReading);
         Assert.Equal(CurrentUtc, response.EvaluatedAtUtc);
-        Assert.Equal(5, response.ConnectedThresholdMinutes);
-        Assert.Equal(15, response.DisconnectedThresholdMinutes);
+        Assert.Equal(.5, response.ConnectedThresholdMinutes);
+        Assert.Equal(30, response.StaleSeconds);
+        Assert.Null(response.LastSeenAtUtc);
+        Assert.Null(response.SecondsSinceGatewayContact);
+        Assert.Equal(1.5, response.DisconnectedThresholdMinutes);
+        Assert.Equal(90, response.DisconnectedSeconds);
     }
 
     private static SensorConnectionStatusController CreateController(

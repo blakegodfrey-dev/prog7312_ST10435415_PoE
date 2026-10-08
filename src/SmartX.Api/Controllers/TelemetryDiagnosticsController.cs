@@ -4,7 +4,11 @@ using SmartX.Api.Contracts.Telemetry.Diagnostics;
 using SmartX.Domain.Enums;
 using SmartX.Infrastructure.Persistence;
 using SmartX.Infrastructure.Persistence.Entities;
-using SmartX.Application.Telemetry;
+using SmartX.Application.Live;
+using SmartX.Application.Operations;
+using SmartX.Infrastructure.Live;
+using SmartX.Infrastructure.Operations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SmartX.Api.Controllers;
 
@@ -16,105 +20,44 @@ public sealed class TelemetryDiagnosticsController : ControllerBase
 
     private readonly SmartXDbContext _context;
     private readonly TimeProvider _timeProvider;
+    private readonly LiveTelemetryService _live;
+    private readonly IncidentTracker _incidents;
 
-    public TelemetryDiagnosticsController(
-        SmartXDbContext context,
-        TimeProvider? timeProvider = null)
+    [ActivatorUtilitiesConstructor]
+    public TelemetryDiagnosticsController(SmartXDbContext context, LiveTelemetryService live,
+        IncidentTracker incidents, TimeProvider timeProvider)
+    {
+        _context = context;
+        _live = live;
+        _incidents = incidents;
+        _timeProvider = timeProvider;
+    }
+
+    public TelemetryDiagnosticsController(SmartXDbContext context, TimeProvider? timeProvider = null)
     {
         _context = context;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        var defaults = new OperationsOptions();
+        _incidents = new IncidentTracker(_timeProvider, TimeSpan.FromSeconds(defaults.StaleSeconds),
+            TimeSpan.FromSeconds(defaults.DisconnectedSeconds));
+        _live = new LiveTelemetryService(context, new LiveTelemetryStore(), _incidents);
     }
 
     [HttpGet("health-summary")]
-    public async Task<ActionResult<SensorHealthSummaryResponse>>
-        GetHealthSummary(
-        CancellationToken cancellationToken = default)
+    public async Task<ActionResult<SensorHealthSummaryResponse>> GetHealthSummary(CancellationToken cancellationToken = default)
     {
-        var sensorIds = await _context.Sensors
-            .AsNoTracking()
-            .Select(sensor => sensor.Id)
-            .ToListAsync(cancellationToken);
-
-        var latestReadings = await _context.TelemetryRecords
-            .AsNoTracking()
-            .GroupBy(record => record.SensorId)
-            .Select(group => group
-                .OrderByDescending(record => record.RecordedAtUtc)
-                .ThenByDescending(record => record.Id)
-                .Select(record => new
-                {
-                    record.SensorId,
-                    record.RecordedAtUtc,
-                    record.IsValid
-                })
-                .First())
-            .ToListAsync(cancellationToken);
-
-        var latestReadingBySensorId = latestReadings.ToDictionary(
-            reading => reading.SensorId);
-
-        var evaluatedAtUtc = _timeProvider.GetUtcNow();
-        var connectedSensorCount = 0;
-        var staleSensorCount = 0;
-        var disconnectedSensorCount = 0;
-        var noDataSensorCount = 0;
-        var invalidLatestReadingCount = 0;
-
-        foreach (var sensorId in sensorIds)
-        {
-            if (!latestReadingBySensorId.TryGetValue(
-                    sensorId,
-                    out var latestReading))
-            {
-                noDataSensorCount++;
-                continue;
-            }
-
-            if (!latestReading.IsValid)
-            {
-                invalidLatestReadingCount++;
-            }
-
-            var status = SensorConnectionStatusEvaluator.Evaluate(
-                latestReading.RecordedAtUtc,
-                evaluatedAtUtc);
-
-            switch (status)
-            {
-                case SensorConnectionStatus.Connected:
-                    connectedSensorCount++;
-                    break;
-
-                case SensorConnectionStatus.Stale:
-                    staleSensorCount++;
-                    break;
-
-                case SensorConnectionStatus.Disconnected:
-                    disconnectedSensorCount++;
-                    break;
-
-                case SensorConnectionStatus.NoData:
-                    noDataSensorCount++;
-                    break;
-
-                default:
-                    throw new InvalidOperationException(
-                        $"Unsupported sensor connection status '{status}'.");
-            }
-        }
-
-        return Ok(new SensorHealthSummaryResponse(
-            sensorIds.Count,
-            connectedSensorCount,
-            staleSensorCount,
-            disconnectedSensorCount,
-            noDataSensorCount,
-            invalidLatestReadingCount,
-            evaluatedAtUtc,
-            (int)SensorConnectionStatusEvaluator
-                .ConnectedThreshold.TotalMinutes,
-            (int)SensorConnectionStatusEvaluator
-                .DisconnectedThreshold.TotalMinutes));
+        await _live.EnsureInitializedAsync(cancellationToken);
+        var devices = _live.Store.GetDevices();
+        var connections = devices.Select(d => _incidents.GetConnection(d.Id)).ToArray();
+        return Ok(new SensorHealthSummaryResponse(devices.Count,
+            connections.Count(c => c.State == "Connected"),
+            connections.Count(c => c.State == "Stale"),
+            connections.Count(c => c.State == "Disconnected"),
+            devices.Count(d => d.LatestReading is null),
+            devices.Count(d => d.LatestReading is { IsValid: false }),
+            _timeProvider.GetUtcNow(), _incidents.StaleAfter.TotalMinutes, _incidents.DisconnectedAfter.TotalMinutes,
+            _incidents.StaleAfter.TotalSeconds, _incidents.DisconnectedAfter.TotalSeconds,
+            connections.Count(c => c.State == "Unknown")));
     }
 
     [HttpGet("summary")]

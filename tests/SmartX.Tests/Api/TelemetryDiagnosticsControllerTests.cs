@@ -65,6 +65,13 @@ public sealed class TelemetryDiagnosticsControllerTests
 
         await context.SaveChangesAsync();
 
+        context.GatewayReceipts.AddRange(
+            new GatewayReceipt { SensorId = connectedSensor.Id, LastSeenAtUtc = EvaluationUtc.AddSeconds(-5) },
+            new GatewayReceipt { SensorId = staleSensor.Id, LastSeenAtUtc = EvaluationUtc.AddSeconds(-40) },
+            new GatewayReceipt { SensorId = disconnectedSensor.Id, LastSeenAtUtc = EvaluationUtc.AddSeconds(-100) },
+            new GatewayReceipt { SensorId = invalidConnectedSensor.Id, LastSeenAtUtc = EvaluationUtc.AddSeconds(-5) });
+        await context.SaveChangesAsync();
+
         var controller = CreateController(context);
 
         var action = await controller.GetHealthSummary(
@@ -81,8 +88,11 @@ public sealed class TelemetryDiagnosticsControllerTests
         Assert.Equal(1, summary.NoDataSensorCount);
         Assert.Equal(1, summary.InvalidLatestReadingCount);
         Assert.Equal(EvaluationUtc, summary.EvaluatedAtUtc);
-        Assert.Equal(5, summary.ConnectedThresholdMinutes);
-        Assert.Equal(15, summary.DisconnectedThresholdMinutes);
+        Assert.Equal(.5, summary.ConnectedThresholdMinutes);
+        Assert.Equal(30, summary.StaleSeconds);
+        Assert.Equal(1, summary.UnknownSensorCount);
+        Assert.Equal(1.5, summary.DisconnectedThresholdMinutes);
+        Assert.Equal(90, summary.DisconnectedSeconds);
     }
 
     [Fact]
@@ -122,6 +132,7 @@ public sealed class TelemetryDiagnosticsControllerTests
             CreateFloatRecord(sensor.Id, 35, 10, isValid: false),
             CreateFloatRecord(sensor.Id, 22, 29));
 
+        context.GatewayReceipts.Add(new GatewayReceipt { SensorId = sensor.Id, LastSeenAtUtc = EvaluationUtc });
         await context.SaveChangesAsync();
 
         var controller = CreateController(context);
