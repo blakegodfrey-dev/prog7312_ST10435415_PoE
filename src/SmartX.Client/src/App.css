@@ -1459,3 +1459,22 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.operation-device-list { display: grid; gap: .75rem; max-height: 38rem; overflow-y: auto; }
+.operation-device { display: grid; gap: .3rem; text-align: left; border: 1px solid #cbd5e1; background: #f8fafc; color: #123139; border-radius: .7rem; padding: 1rem; cursor: pointer; }
+.operation-device[aria-pressed="true"] { border: 2px solid #00746a; background: #e6f7f3; }
+.operation-device span { font-size: .85rem; overflow-wrap: anywhere; }
+.operation-actions { display: flex; gap: .7rem; margin-bottom: 1rem; }
+.operation-counts > div { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; border-bottom: 1px solid #dbe5e5; }
+.operation-counts dd { font-weight: 700; margin: 0; }
+.operation-incident, .operation-insight { padding: .8rem; margin: .8rem 0; border: 1px solid #cbd5e1; border-left: 4px solid #b65d13; border-radius: .5rem; }
+.operation-incident form, .operation-incident label { display: grid; gap: .4rem; }
+.operation-incident textarea { min-height: 4rem; max-width: 100%; }
+.operation-table-wrap { overflow-x: auto; max-height: 30rem; }
+.operation-history table { width: 100%; border-collapse: collapse; text-align: left; font-size: .85rem; }
+.operation-history td, .operation-history th { padding: .6rem; border-bottom: 1px solid #dbe5e5; vertical-align: top; }
+.operation-invalid { background: #fff3e2; }
+.command-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.command-workspace button:focus-visible, .command-workspace select:focus-visible { outline: 3px solid #00746a; outline-offset: 3px; }
+
+.operation-chart svg { width: 100%; min-width: 280px; display: block; }

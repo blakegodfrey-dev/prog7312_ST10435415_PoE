@@ -63,6 +63,8 @@ beforeEach(async () => {
     const special = await override?.(url, options);
     if (special) return special;
     const path = url.pathname;
+    if (path === '/api/operations/dashboard') return response(operationSnapshot());
+    if (path === '/api/operations/interactions') return response({});
     if (path === '/api/health') {
       if (process.env.SMARTX_REAL_API_HEALTH_URL) return originalFetch(process.env.SMARTX_REAL_API_HEALTH_URL, options);
       return response({ status: 'Healthy' });
@@ -150,8 +152,8 @@ test('App exposes enabled Part 1 and Part 2 pillars and keeps final topology dis
   assert.equal(button('Coming in Final PoE').disabled, true);
   await click('Open Command Stream');
   assert.match(document.querySelector('h1').textContent, /Real-Time Command Stream/);
-  assert.equal(document.querySelectorAll('.command-shell-panel').length, 6);
-  assert.equal(button('Undo unavailable').disabled, true);
+  assert.equal(document.querySelectorAll('.command-shell-panel').length, 7);
+  assert.equal(button('Undo latest successful command').disabled, true);
   await navigate('Home');
   await click('Open Telemetry');
   assert.equal(document.querySelector('h1').textContent, 'Sensor directory');
@@ -301,4 +303,86 @@ test('API failure does not block module navigation and retry recovers the direct
   await click('Try again', document.querySelector('.error-panel'));
   await waitUntil(() => document.querySelector('.sensor-card'));
   assert.equal(document.querySelector('.error-panel'), null);
+});
+
+function operationSnapshot() {
+  const pump = { ...sensor, id: 'pump', friendlyName: 'Circulation Pump', category: 'Actuator', valueKind: 'Boolean', measuredProperty: 'Pump state', unit: '', expectedMinimum: null, expectedMaximum: null, latestReading: { booleanValue: false, isValid: true, recordedAtUtc: '2026-10-07T09:00:00Z' } };
+  return { devices: [{ device: pump, connection: { state: 'Connected', lastSeenAtUtc: '2026-10-07T09:00:00Z' } }], activeIncidents: [], events: [], processing: { normalCount: 0, priorityCount: 0, pendingReadings: 0, workerState: 'Waiting', completed: 2, failed: 0, rejected: 0 }, undoCount: 0, commands: [], history: [], recentCapacity: 2000, staleSeconds: 30, suggestions: [] };
+}
+
+test('Operational dashboard sends manual commands and retains pending feedback across navigation', async () => {
+  let resolveCommand;
+  override = async (url) => {
+    if (url.pathname === '/api/operations/commands') return new Promise(resolve => { resolveCommand = resolve; });
+    if (url.pathname === '/api/operations/interactions') return response({});
+  };
+  await navigate('Command Stream');
+  await waitUntil(() => document.querySelector('.operation-device'));
+  await act(async () => document.querySelector('.operation-device').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  assert.equal(button('Set Off').disabled, true);
+  await click('Set On');
+  await waitUntil(() => resolveCommand);
+  assert.equal(button('Set On').disabled, true);
+  assert.equal(requests.filter(r => r.url.pathname === '/api/operations/commands').length, 1);
+  const body = JSON.parse(requests.find(r => r.url.pathname === '/api/operations/commands').body);
+  assert.equal(body.sensorId, 'pump'); assert.equal(body.desiredState, true);
+  await navigate('Home');
+  await act(async () => { resolveCommand(response({ successful: true, message: 'Acknowledged' })); await delay(10); });
+  await navigate('Command Stream');
+  await waitUntil(() => document.body.textContent.includes('Success: Acknowledged'));
+  assert.match(document.body.textContent, /No supported pattern/);
+});
+
+test('Operational retry recovers and cold-start data never enables unsafe controls', async () => {
+  override = url => url.pathname === '/api/operations/dashboard' ? response({ detail: 'Gateway unavailable' }, 503) : null;
+  await navigate('Command Stream');
+  await waitUntil(() => document.querySelector('[role="alert"]'));
+  assert.equal(button('Undo latest successful command').disabled, true);
+  override = null; await click('Retry');
+  await waitUntil(() => document.querySelector('.operation-device'));
+  assert.equal(document.querySelector('[role="alert"]'), null);
+});
+
+test('Learned actions require approval and Undo goes through the validated API', async () => {
+  const data = operationSnapshot();
+  data.undoCount = 1;
+  data.suggestions = [{ targetId: 'pump', action: 'command', desiredState: true, support: 3, contextObservations: 4, confidence: .75, reason: 'Operators activate this pump after low moisture.' }];
+  override = (url) => {
+    if (url.pathname === '/api/operations/dashboard') return response(data);
+    if (url.pathname === '/api/operations/commands') return response({ successful: true, message: 'Approved and committed' });
+    if (url.pathname === '/api/operations/undo') return response({ successful: true, message: 'Previous state restored' });
+  };
+  await navigate('Command Stream');
+  await waitUntil(() => document.body.textContent.includes('Confidence: 75%'));
+  assert.equal(requests.filter(r => r.url.pathname.endsWith('/commands')).length, 0);
+  await click('Approve: set On');
+  await waitUntil(() => document.body.textContent.includes('Approved and committed'));
+  const command = JSON.parse(requests.find(r => r.url.pathname.endsWith('/commands')).body);
+  assert.equal(command.desiredState, true); assert.equal(command.sensorId, 'pump');
+  await click('Undo latest successful command');
+  await waitUntil(() => document.body.textContent.includes('Previous state restored'));
+  assert.equal(requests.filter(r => r.url.pathname.endsWith('/undo')).length, 1);
+});
+
+test('Operational anomaly drill-down shows native zero, range context and missing intervals', async () => {
+  const data = operationSnapshot();
+  const abnormal = { ...sensor, latestReading: { floatValue: 0, valueKind: 'Float', isValid: false, recordedAtUtc: '2026-10-07T09:02:00Z' } };
+  data.devices = [{ device: abnormal, connection: { state: 'Connected', lastSeenAtUtc: '2026-10-07T09:02:00Z' } }];
+  data.history = [
+    { id: 'p1', sensorId: sensor.id, valueKind: 'Float', floatValue: 6, isValid: true, recordedAtUtc: '2026-10-07T09:00:00Z', receivedAtUtc: '2026-10-07T09:00:01Z' },
+    { id: 'p2', sensorId: sensor.id, valueKind: 'Float', floatValue: 0, isValid: false, validationMessage: 'Below configured minimum', recordedAtUtc: '2026-10-07T09:02:00Z', receivedAtUtc: '2026-10-07T09:02:01Z' },
+  ];
+  data.activeIncidents = [{ id: 'alarm', deviceId: sensor.id, type: 'OutOfRange', severity: 'critical', reason: 'pH below expected range', observations: 2, openedAtUtc: '2026-10-07T09:02:01Z', label: 'unresolved', note: null }];
+  override = url => url.pathname === '/api/operations/dashboard' ? response(data) : null;
+  await navigate('Command Stream');
+  await waitUntil(() => document.querySelector('.operation-device'));
+  await input('Alert state', 'critical');
+  await act(async () => document.querySelector('.operation-device').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  assert.match(document.body.textContent, /Missing interval/);
+  assert.match(document.body.textContent, /Expected 5.5–6.5 pH/);
+  assert.equal(document.querySelectorAll('.operation-chart polyline').length, 2);
+  await act(async () => document.querySelector('.operation-chart circle[aria-label^="Anomaly"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+  assert.match(document.body.textContent, /Selected anomaly/);
+  assert.match(document.body.textContent, /Below configured minimum/);
+  assert.equal(document.querySelectorAll('.operation-incident').length, 1);
 });

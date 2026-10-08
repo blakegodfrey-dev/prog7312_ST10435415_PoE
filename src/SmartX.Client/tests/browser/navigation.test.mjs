@@ -83,6 +83,7 @@ async function fixture(t, options = {}) {
       return;
     }
     const json = async (value, status = 200) => fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
+    if (path === '/api/operations/dashboard') return json({ devices: [], activeIncidents: [], events: [], processing: {}, undoCount: 0, commands: [], history: [], suggestions: [], recentCapacity: 2000 });
     if (path === '/api/health') return json({ status: 'Healthy' });
     if (path === '/api/deployment-nodes') return json([location]);
     if (path === '/api/telemetry/diagnostics/health-summary') return json({ totalSensorCount: 3, connectedSensorCount: 3, staleSensorCount: 0, disconnectedSensorCount: 0, invalidLatestReadingCount: 1, noDataSensorCount: 0, connectedThresholdMinutes: 5, disconnectedThresholdMinutes: 15, evaluatedAtUtc: '2026-10-07T09:00:00Z' });
@@ -154,8 +155,8 @@ test('Home enables both active pillars while topology stays visibly disabled', a
   await page.getByRole('button', { name: 'Open Command Stream' }).click();
   await page.getByRole('heading', { name: 'Real-Time Command Stream and History', exact: true }).waitFor();
   assert.equal(await nav(page, 'Command Stream').getAttribute('aria-current'), 'page');
-  assert.equal(await page.getByRole('button', { name: 'Undo unavailable' }).isDisabled(), true);
-  assert.equal(await page.locator('.command-shell-panel').count(), 6);
+  assert.equal(await page.getByRole('button', { name: 'Undo latest successful command' }).isDisabled(), true);
+  assert.equal(await page.locator('.command-shell-panel').count(), 7);
   await nav(page, 'Home').click();
   await page.getByRole('button', { name: 'Open Telemetry' }).click();
   await page.getByRole('heading', { name: 'Sensor directory' }).waitFor();

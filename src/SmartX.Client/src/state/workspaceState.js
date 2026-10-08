@@ -21,6 +21,8 @@ export function createWorkspaceState() {
       alertFilter: "all",
       selectedDeviceId: null,
       historySelection: "recent",
+      commandPending: false,
+      commandFeedback: null,
     },
   };
 }
