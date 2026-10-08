@@ -22,6 +22,10 @@ public sealed class SmartXDbContext : DbContext
     public DbSet<TelemetryRecord> TelemetryRecords =>
         Set<TelemetryRecord>();
 
+    public DbSet<CommandHistoryEntry> CommandHistory => Set<CommandHistoryEntry>();
+    public DbSet<InteractionRecord> Interactions => Set<InteractionRecord>();
+    public DbSet<GatewayReceipt> GatewayReceipts => Set<GatewayReceipt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

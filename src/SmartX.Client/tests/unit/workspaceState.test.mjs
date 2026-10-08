@@ -30,7 +30,7 @@ test('Command Stream choices survive module changes and do not change Telemetry'
     state = act(state, 'navigate', { view: 'sensors' });
     state = act(state, 'navigate', { view: 'commands' });
   }
-  assert.deepEqual(state.commandStream, choices);
+  assert.deepEqual(state.commandStream, { ...choices, commandPending: false, commandFeedback: null });
   assert.strictEqual(state.telemetry, telemetry);
 });
 
@@ -75,4 +75,14 @@ test('A fresh browser application gets its own state rather than another session
   const second = createWorkspaceState();
   assert.equal(second.telemetry.registrationForm.friendlyName, '');
   assert.equal(second.telemetry.selectedSensorId, null);
+});
+
+test('Pending command and feedback survive module switches', () => {
+  let state = createWorkspaceState();
+  state = act(state, 'commands/patch', { patch: { commandPending: true } });
+  state = act(state, 'navigate', { view: 'sensors' });
+  assert.equal(state.commandStream.commandPending, true);
+  state = act(state, 'commands/patch', { patch: { commandPending: false, commandFeedback: 'Success' } });
+  state = act(state, 'navigate', { view: 'commands' });
+  assert.equal(state.commandStream.commandFeedback, 'Success');
 });

@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using SmartX.Application.Operations;
+using SmartX.Infrastructure.Operations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartX.Application.Attachments;
@@ -58,6 +61,17 @@ public static class DependencyInjection
         services.AddScoped<LiveTelemetryService>();
         services.AddScoped<SmartXDatabaseSeeder>();
 
+        services.AddOptions<OperationsOptions>().Bind(configuration.GetSection("Operations"))
+            .Validate(o => o.QueueCapacity > 0 && o.QueueCapacity <= 100000 && o.StaleSeconds > 0 && o.DisconnectedSeconds > o.StaleSeconds && o.ScanSeconds > 0 && o.ProcessingDelayMilliseconds is >= 0 and <= 1000, "Invalid operation limits.").ValidateOnStart();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(sp => new IncidentTracker(sp.GetRequiredService<TimeProvider>(),
+            TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<OperationsOptions>>().Value.StaleSeconds),
+            TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<OperationsOptions>>().Value.DisconnectedSeconds)));
+        services.AddSingleton(sp => new TelemetryWorkQueue<TelemetryWork>(sp.GetRequiredService<IOptions<OperationsOptions>>().Value.QueueCapacity));
+        services.AddSingleton<TelemetryDispatcher>();
+        services.AddSingleton<CommandService>();
+        services.AddHostedService<TelemetryProcessor>();
+        services.AddHostedService<ConnectionMonitor>();
         return services;
     }
 }
