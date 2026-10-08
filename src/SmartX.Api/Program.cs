@@ -31,6 +31,7 @@ builder.Services
     .AddControllers(options =>
     {
         options.Filters.Add<ProblemDetailsEnrichmentFilter>();
+        options.Filters.Add<InvalidTelemetryFilter>();
     })
     .ConfigureApiBehaviorOptions(options =>
     {
