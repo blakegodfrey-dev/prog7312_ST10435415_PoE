@@ -1,4 +1,6 @@
 using System.Linq.Expressions;
+using SmartX.Infrastructure.Operations;
+using SmartX.Application.Operations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartX.Api.Contracts.Telemetry;
@@ -39,12 +41,16 @@ public sealed class TelemetryController : ControllerBase
     private readonly SmartXDbContext _context;
 
     private readonly LiveTelemetryService _live;
+    private readonly TelemetryDispatcher? _dispatcher;
+    private readonly IncidentTracker? _incidents;
 
     [ActivatorUtilitiesConstructor]
-    public TelemetryController(SmartXDbContext context, LiveTelemetryService live)
+    public TelemetryController(SmartXDbContext context, LiveTelemetryService live, TelemetryDispatcher? dispatcher = null, IncidentTracker? incidents = null)
     {
         _context = context;
         _live = live;
+        _dispatcher = dispatcher;
+        _incidents = incidents;
     }
 
     // Preserve the original isolated-controller test construction. Production
@@ -220,6 +226,7 @@ public sealed class TelemetryController : ControllerBase
 
             if (validationError is not null)
             {
+                _incidents?.InvalidPayload(sensor.Id, validationError);
                 return ValidationError(
                     $"readings[{index}]",
                     validationError);
@@ -228,19 +235,18 @@ public sealed class TelemetryController : ControllerBase
             records.Add(record!);
         }
 
-        _context.TelemetryRecords.AddRange(records);
-
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            if (_dispatcher is not null) await _dispatcher.SubmitAsync(records, cancellationToken);
+            else { _context.TelemetryRecords.AddRange(records); await _context.SaveChangesAsync(cancellationToken); _live.PublishCommitted(records); }
         }
+        catch (QueueFullException) { return Problem(statusCode: 429, title: "Gateway queue is full", detail: "No readings accepted. Retry the complete batch with the same identifiers."); }
         catch (DbUpdateException)
         {
             return ConflictError(
                 "The telemetry batch conflicts with existing readings.");
         }
 
-        _live.PublishCommitted(records);
 
         var responses = records
             .Select(ToResponse)
@@ -416,6 +422,7 @@ public sealed class TelemetryController : ControllerBase
         }
         catch (InvalidOperationException exception)
         {
+            _incidents?.InvalidPayload(sensor.Id, exception.Message);
             return ValidationError("telemetry", exception.Message);
         }
 
@@ -425,19 +432,18 @@ public sealed class TelemetryController : ControllerBase
             validation.IsValid,
             validation.Message);
 
-        _context.TelemetryRecords.Add(record);
-
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            if (_dispatcher is not null) await _dispatcher.SubmitAsync([record], cancellationToken);
+            else { _context.TelemetryRecords.Add(record); await _context.SaveChangesAsync(cancellationToken); _live.PublishCommitted([record]); }
         }
+        catch (QueueFullException) { return Problem(statusCode: 429, title: "Gateway queue is full", detail: "No reading accepted. Retry with the same identifier."); }
         catch (DbUpdateException)
         {
             return ConflictError(
                 "The telemetry record conflicts with an existing reading.");
         }
 
-        _live.PublishCommitted([record]);
 
         return CreatedAtAction(
             nameof(GetById),
