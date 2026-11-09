@@ -82,6 +82,8 @@ public sealed class LiveHttpTests
             Assert.False(boolean!.LatestReading!.BooleanValue);
             var full = await client.GetFromJsonAsync<TelemetryHistoryResponse>($"/api/telemetry/sensors/{sensor.Id}?pageSize=500");
             Assert.Equal(3, full!.TotalCount);
+            Assert.Equal("AVL", full.Tree!.Structure);
+            Assert.Equal(3, full.Tree.IndexedReadings);
             Assert.Equal(2, history.Readings.Count(r => r.SensorId == sensor.Id));
             Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/telemetry/bulk", request)).StatusCode);
             Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/live/history?limit=501")).StatusCode);

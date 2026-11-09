@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartX.Application.Attachments;
 using SmartX.Application.Live;
+using SmartX.Application.History;
 using SmartX.Infrastructure.Live;
 using SmartX.Infrastructure.Attachments;
 using SmartX.Infrastructure.Persistence;
@@ -58,6 +59,7 @@ public static class DependencyInjection
         if (!int.TryParse(capacityText, out var capacity))
             throw new InvalidOperationException("LiveTelemetry:RecentHistoryCapacity must be an integer.");
         services.AddSingleton(new LiveTelemetryStore(capacity));
+        services.AddSingleton<HistoricalTelemetryIndex>();
         services.AddScoped<LiveTelemetryService>();
         services.AddScoped<SmartXDatabaseSeeder>();
 

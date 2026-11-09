@@ -7,6 +7,7 @@ import {
 } from "./telemetryDisplay";
 import { useSensorTelemetry } from "./useSensorTelemetry";
 import { TelemetryChart } from "./TelemetryChart";
+import { buildHistoryRange, HISTORY_TIME_ZONE } from "./historyRange.js";
 
 const PAGE_SIZE = 25;
 
@@ -28,7 +29,8 @@ export function TelemetryHistoryPanel({
     expectedMaximum,
   }) {
   const { state, dispatch } = useWorkspaceState();
-  const { validityFilter, page, selectedReadingId } = getSensorHistoryState(state, sensorId);
+  const { validityFilter, page, selectedReadingId, fromLocal, toLocal } = getSensorHistoryState(state, sensorId);
+  const range = buildHistoryRange(fromLocal, toLocal);
   const patchHistory = (patch) => dispatch({ type: "history/patch", sensorId, patch });
 
   const {
@@ -42,6 +44,9 @@ export function TelemetryHistoryPanel({
     isValid: toValidityFilter(validityFilter),
     page,
     pageSize: PAGE_SIZE,
+    fromUtc: range.fromUtc,
+    toUtc: range.toUtc,
+    enabled: !range.error,
   });
 
   const pageCount = history
@@ -59,7 +64,7 @@ export function TelemetryHistoryPanel({
     >
       <div className="telemetry-heading">
         <div>
-          <p className="eyebrow">RECENT READINGS</p>
+          <p className="eyebrow">HISTORICAL READINGS</p>
           <h2 id="telemetry-history-title">Telemetry history</h2>
         </div>
 
@@ -87,12 +92,13 @@ export function TelemetryHistoryPanel({
             <strong>
               {formatTelemetryTimestamp(
                 connectionStatus.lastRecordedAtUtc,
+                HISTORY_TIME_ZONE,
               )}
             </strong>
           </span>
           <span>
             Gateway last seen:{" "}
-            <strong>{formatTelemetryTimestamp(connectionStatus.lastSeenAtUtc)}</strong>
+            <strong>{formatTelemetryTimestamp(connectionStatus.lastSeenAtUtc, HISTORY_TIME_ZONE)}</strong>
           </span>
           <small>
             Connected &lt;{connectionStatus.staleSeconds} s ·
@@ -103,6 +109,18 @@ export function TelemetryHistoryPanel({
       )}
 
       <div className="telemetry-controls">
+        <label>
+          <span>From (SAST)</span>
+          <input type="datetime-local" step="1" value={fromLocal}
+            aria-describedby="history-timezone"
+            onChange={(event) => patchHistory({ fromLocal: event.target.value, page: 1, selectedReadingId: null })} />
+        </label>
+        <label>
+          <span>To (SAST)</span>
+          <input type="datetime-local" step="1" value={toLocal}
+            aria-describedby="history-timezone"
+            onChange={(event) => patchHistory({ toLocal: event.target.value, page: 1, selectedReadingId: null })} />
+        </label>
         <label>
           <span>Reading status</span>
           <select
@@ -115,18 +133,26 @@ export function TelemetryHistoryPanel({
           </select>
         </label>
 
-        <button type="button" className="secondary-button" onClick={refresh}>
+        <button type="button" className="secondary-button"
+          onClick={() => patchHistory({ fromLocal: "", toLocal: "", page: 1, selectedReadingId: null })}>
+          Clear dates
+        </button>
+        <button type="button" className="secondary-button" onClick={refresh} disabled={Boolean(range.error)}>
           Refresh
         </button>
       </div>
+      <p id="history-timezone" className="history-range-help">
+        All history times use SAST (UTC+02:00). Both endpoints are included; leave either date blank for an open range.
+      </p>
+      {range.error && <p className="telemetry-state telemetry-error" role="alert">{range.error}</p>}
 
-      {isLoading && (
+      {!range.error && isLoading && (
         <div className="telemetry-state" aria-live="polite">
           Loading telemetry history...
         </div>
       )}
 
-      {!isLoading && error && (
+      {!range.error && !isLoading && error && (
         <div className="telemetry-state telemetry-error" role="alert">
           <strong>Unable to load telemetry history.</strong>
           <span>{error.message}</span>
@@ -137,7 +163,7 @@ export function TelemetryHistoryPanel({
         </div>
       )}
 
-      {!isLoading &&
+      {!range.error && !isLoading &&
         !error &&
         history &&
         history.readings.length === 0 && (
@@ -150,7 +176,7 @@ export function TelemetryHistoryPanel({
           </div>
         )}
 
-      {!isLoading &&
+      {!range.error && !isLoading &&
         !error &&
         history &&
         history.readings.length > 0 && (
@@ -162,6 +188,7 @@ export function TelemetryHistoryPanel({
             expectedMaximum={expectedMaximum}
             selectedReadingId={selectedReadingId}
             onSelectReading={(selectedReadingId) => patchHistory({ selectedReadingId })}
+            timeZone={HISTORY_TIME_ZONE}
           />
 
             <div className="telemetry-table-wrapper">
@@ -180,6 +207,7 @@ export function TelemetryHistoryPanel({
                       <td>
                         {formatTelemetryTimestamp(
                           reading.recordedAtUtc,
+                          HISTORY_TIME_ZONE,
                         )}
                       </td>
                       <td className="reading-value">
@@ -188,6 +216,7 @@ export function TelemetryHistoryPanel({
                       <td>
                         {formatTelemetryTimestamp(
                           reading.receivedAtUtc,
+                          HISTORY_TIME_ZONE,
                         )}
                       </td>
                       <td>

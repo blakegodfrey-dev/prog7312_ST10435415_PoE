@@ -328,38 +328,12 @@ public sealed class TelemetryController : ControllerBase
                 $"No sensor with identifier '{sensorId}' exists.");
         }
 
-        var query = _context.TelemetryRecords
-            .AsNoTracking()
-            .Where(record => record.SensorId == sensorId);
-
-        if (fromUtc.HasValue)
-        {
-            var normalisedFromUtc = fromUtc.Value.ToUniversalTime();
-            query = query.Where(record =>
-                record.RecordedAtUtc >= normalisedFromUtc);
-        }
-
-        if (toUtc.HasValue)
-        {
-            var normalisedToUtc = toUtc.Value.ToUniversalTime();
-            query = query.Where(record =>
-                record.RecordedAtUtc <= normalisedToUtc);
-        }
-
-        if (isValid.HasValue)
-        {
-            query = query.Where(record =>
-                record.IsValid == isValid.Value);
-        }
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var readings = await query
-            .OrderByDescending(record => record.RecordedAtUtc)
-            .ThenByDescending(record => record.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(ResponseProjection)
-            .ToListAsync(cancellationToken);
+        var result = await _live.GetHistoricalPageAsync(sensorId, fromUtc, toUtc,
+            isValid, page, pageSize, cancellationToken);
+        var readings = result.Readings.Select(reading => new TelemetryReadingResponse(
+            reading.Id, reading.SensorId, reading.ValueKind, reading.FloatValue,
+            reading.IntegerValue, reading.BooleanValue, reading.RecordedAtUtc,
+            reading.ReceivedAtUtc, reading.IsValid, reading.ValidationMessage)).ToArray();
 
         return Ok(new TelemetryHistoryResponse(
             sensor.Id,
@@ -368,8 +342,8 @@ public sealed class TelemetryController : ControllerBase
             sensor.Unit,
             page,
             pageSize,
-            totalCount,
-            readings));
+            result.TotalCount,
+            readings) { Tree = result.Tree });
     }
 
     private async Task<ActionResult<TelemetryReadingResponse>> Ingest<T>(

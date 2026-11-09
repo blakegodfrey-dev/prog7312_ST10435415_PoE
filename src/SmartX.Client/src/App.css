@@ -642,6 +642,7 @@ button:focus-visible {
 
 .telemetry-controls {
   margin: 24px 0 16px;
+  flex-wrap: wrap;
 }
 
 .telemetry-controls label {
@@ -652,7 +653,8 @@ button:focus-visible {
   font-weight: 700;
 }
 
-.telemetry-controls select {
+.telemetry-controls select,
+.telemetry-controls input {
   min-height: 42px;
   border: 1px solid #bcc5ca;
   border-radius: 9px;
@@ -660,6 +662,12 @@ button:focus-visible {
   background: #ffffff;
   color: #182126;
   font: inherit;
+}
+
+.history-range-help {
+  color: #47545a;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .telemetry-table-wrapper {

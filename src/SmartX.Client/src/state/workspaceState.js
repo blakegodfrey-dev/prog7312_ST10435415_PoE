@@ -32,6 +32,8 @@ export function getSensorHistoryState(state, sensorId) {
     validityFilter: "all",
     page: 1,
     selectedReadingId: null,
+    fromLocal: "",
+    toLocal: "",
   };
 }
 

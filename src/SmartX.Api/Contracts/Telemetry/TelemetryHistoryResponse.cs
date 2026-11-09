@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using SmartX.Domain.Enums;
+using SmartX.Application.History;
 
 namespace SmartX.Api.Contracts.Telemetry;
 
@@ -13,4 +14,8 @@ public sealed record TelemetryHistoryResponse(
     int Page,
     int PageSize,
     int TotalCount,
-    IReadOnlyList<TelemetryReadingResponse> Readings);
+    IReadOnlyList<TelemetryReadingResponse> Readings)
+{
+    // Additive diagnostic evidence for the PoE; existing response fields remain.
+    public HistoricalQueryStatistics? Tree { get; init; }
+}

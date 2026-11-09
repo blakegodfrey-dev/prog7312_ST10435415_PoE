@@ -39,7 +39,7 @@ test('Different sensors retain independent history pages and validity choices', 
   state = act(state, 'history/patch', { sensorId: 'pump', patch: { page: 2, validityFilter: 'valid' } });
   assert.equal(getSensorHistoryState(state, 'ph').page, 3);
   assert.equal(getSensorHistoryState(state, 'pump').validityFilter, 'valid');
-  assert.deepEqual(getSensorHistoryState(state, 'new'), { page: 1, validityFilter: 'all', selectedReadingId: null });
+  assert.deepEqual(getSensorHistoryState(state, 'new'), { page: 1, validityFilter: 'all', selectedReadingId: null, fromLocal: '', toLocal: '' });
 });
 
 test('Navigation preserves a pending registration and draft without opening another module', () => {

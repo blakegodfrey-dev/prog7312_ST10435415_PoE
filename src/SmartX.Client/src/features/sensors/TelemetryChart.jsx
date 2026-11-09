@@ -24,7 +24,7 @@ function formatAxisValue(value, valueKind) {
     : value.toFixed(1);
 }
 
-function formatShortTime(value) {
+function formatShortTime(value, timeZone) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -34,6 +34,7 @@ function formatShortTime(value) {
   return new Intl.DateTimeFormat(undefined, {
     hour: "2-digit",
     minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
   }).format(date);
 }
 
@@ -44,6 +45,7 @@ export function TelemetryChart({
     expectedMaximum,
     selectedReadingId,
     onSelectReading,
+    timeZone,
   }) {
   const points = readings
     .map((reading) => ({
@@ -260,7 +262,7 @@ function handleInvalidPointKeyDown(event, point) {
           const x = getX(index);
           const y = getY(point.chartValue);
           const tooltip = `${formatTelemetryTimestamp(
-            point.recordedAtUtc,
+            point.recordedAtUtc, timeZone,
           )}: ${formatAxisValue(point.chartValue, valueKind)}${
             unit ? ` ${unit}` : ""
           }`;
@@ -317,7 +319,7 @@ function handleInvalidPointKeyDown(event, point) {
           y={HEIGHT - 18}
           textAnchor="start"
         >
-          {formatShortTime(firstPoint.recordedAtUtc)}
+          {formatShortTime(firstPoint.recordedAtUtc, timeZone)}
         </text>
 
         <text
@@ -326,7 +328,7 @@ function handleInvalidPointKeyDown(event, point) {
           y={HEIGHT - 18}
           textAnchor="end"
         >
-          {formatShortTime(lastPoint.recordedAtUtc)}
+          {formatShortTime(lastPoint.recordedAtUtc, timeZone)}
         </text>
       </svg>
       {selectedPoint && (
@@ -354,7 +356,7 @@ function handleInvalidPointKeyDown(event, point) {
       <div>
         <dt>Recorded</dt>
         <dd>
-          {formatTelemetryTimestamp(selectedPoint.recordedAtUtc)}
+          {formatTelemetryTimestamp(selectedPoint.recordedAtUtc, timeZone)}
         </dd>
       </div>
 

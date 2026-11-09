@@ -1,4 +1,4 @@
-# Smart-X IoT Mesh Ecosystem — Parts 1 and 2
+# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillar 1
 
 Student number: **ST10435415**
 Module: **PROG7312 / AAPD7112 — Programming 3B / Advanced Application Development**
@@ -14,6 +14,8 @@ Smart-X simulates a South African hydroponic facility whose environmental sensor
 | Network Topology and Mesh Routing | Visible and disabled; reserved for the final PoE |
 
 Part 1 registration, typed ingestion, deployment validation, attachments and anomaly investigation are retained. Part 2 adds FIFO and priority processing, a live device registry, ordered recent history, unique incidents and recovery, acknowledged commands, Stack-backed Undo, and learned suggestions. Module navigation preserves filters, selections and registration drafts within the current browser application session.
+
+Part 3 **Pillar 1** adds a full historical AVL index, inclusive sensor/time queries, filtered pagination, restart hydration and SAST date controls. Begin with [Pillar 1 setup and local checks](START_HERE_PILLAR_1.md). See [implementation](docs/pillar1/Implementation.md), [verification](docs/pillar1/Verification.md) and [changed files](docs/pillar1/Patch_Files.md). Network topology remains a later pillar.
 
 ## Setup
 
@@ -153,7 +155,7 @@ dotnet test .\SmartX.sln -c Release --no-build --no-restore --filter 'FullyQuali
 
 The live tests cover registry lookup, initialization, chronological ordering, equal-timestamp records, out-of-order arrivals and bounded retention. Recent history uses `SortedDictionary<DateTimeOffset, List<TelemetrySnapshot>>`; each timestamp bucket preserves separate packet IDs. The newest recorded reading remains current when an older reading arrives later.
 
-Recent memory defaults to **2,000 readings globally**, with a maximum response limit of **500**. Full paged SQL history remains available in Telemetry. Queue and recent-history limits are configured separately in `src/SmartX.Api/appsettings.json`.
+Recent memory defaults to **2,000 readings globally**, with a maximum response limit of **500**. Full paged history in Telemetry now queries a separate AVL index rebuilt from SQL, so recent-cache eviction does not remove historical readings. Queue and recent-history limits are configured separately in `src/SmartX.Api/appsettings.json`.
 
 ## Connection health and command rules
 
@@ -211,7 +213,7 @@ Use the OpenAPI document for full contracts. Typed telemetry must contain an exp
 
 ## Verification and submission
 
-The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; see [Testing summary](docs/part2/Testing_Summary.md).
+The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; see [Testing summary](docs/part2/Testing_Summary.md). These are earlier results; current Pillar 1 checks and remaining SQL/browser checks are recorded separately in [Pillar 1 verification](docs/pillar1/Verification.md).
 
 See [Demo checklist](docs/part2/Demo_Checklist.md) for the recording plan. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. Network topology remains final-PoE scope. Hardware and Docker are optional.
 

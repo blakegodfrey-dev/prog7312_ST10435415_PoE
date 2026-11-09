@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartX.Application.Live;
+using SmartX.Application.History;
 using SmartX.Application.Operations;
 using SmartX.Domain.Entities;
 using SmartX.Infrastructure.Persistence;
@@ -8,9 +9,26 @@ using SmartX.Infrastructure.Persistence.Entities;
 namespace SmartX.Infrastructure.Live;
 
 /// <summary>Scoped SQL reader/publisher around the process-wide committed store.</summary>
-public sealed class LiveTelemetryService(SmartXDbContext context, LiveTelemetryStore store, IncidentTracker? incidents = null)
+public sealed class LiveTelemetryService(SmartXDbContext context, LiveTelemetryStore store,
+    IncidentTracker? incidents = null, HistoricalTelemetryIndex? history = null)
 {
     public LiveTelemetryStore Store { get; } = store;
+    public HistoricalTelemetryIndex History { get; } = history ?? new HistoricalTelemetryIndex();
+
+    public async Task<HistoricalTelemetryPage> GetHistoricalPageAsync(Guid sensorId,
+        DateTimeOffset? fromUtc, DateTimeOffset? toUtc, bool? isValid,
+        int page, int pageSize, CancellationToken cancellationToken)
+    {
+        await History.EnsureInitializedAsync(LoadHistoricalReadings, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return History.Query(sensorId, fromUtc, toUtc, isValid, page, pageSize);
+    }
+
+    // SQL is read once per process/index lifetime. Date range, validity, count
+    // and pagination are subsequently evaluated by the AVL index itself.
+    private IAsyncEnumerable<TelemetrySnapshot> LoadHistoricalReadings(CancellationToken _)
+        => LiveTelemetryQueries.HistoricalReadings(context.TelemetryRecords.AsNoTracking(),
+            context.Sensors.AsNoTracking()).AsAsyncEnumerable();
 
     public async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
@@ -59,6 +77,7 @@ public sealed class LiveTelemetryService(SmartXDbContext context, LiveTelemetryS
             return ToSnapshot(record, device.MacAddress);
         }).ToArray();
         Store.PublishCommitted(snapshots);
+        History.PublishCommitted(snapshots);
     }
 
     private async Task<LiveTelemetrySeed> LoadSeedAsync(CancellationToken cancellationToken)

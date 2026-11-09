@@ -439,5 +439,6 @@ src/SmartX.Client/.env.*.local
 uploads/
 
 # Local configuration / secrets
+artifacts/pillar1-demo.json
 *.user
 *.suo

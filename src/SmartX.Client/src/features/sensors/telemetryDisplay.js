@@ -28,7 +28,7 @@ export function formatTelemetryValue(reading, unit) {
   return unit ? `${value} ${unit}` : String(value);
 }
 
-export function formatTelemetryTimestamp(value) {
+export function formatTelemetryTimestamp(value, timeZone) {
   if (!value) {
     return "Not available";
   }
@@ -42,6 +42,7 @@ export function formatTelemetryTimestamp(value) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "medium",
+    ...(timeZone ? { timeZone } : {}),
   }).format(date);
 }
 

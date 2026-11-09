@@ -6,6 +6,9 @@ export function useSensorTelemetry({
   isValid,
   page,
   pageSize,
+  fromUtc,
+  toUtc,
+  enabled = true,
 }) {
   const [history, setHistory] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState(null);
@@ -18,6 +21,7 @@ export function useSensorTelemetry({
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
     let timer;
 
@@ -31,6 +35,8 @@ export function useSensorTelemetry({
               isValid,
               page,
               pageSize,
+              fromUtc,
+              toUtc,
             },
             {
               signal: controller.signal,
@@ -66,6 +72,9 @@ export function useSensorTelemetry({
     isValid,
     page,
     pageSize,
+    fromUtc,
+    toUtc,
+    enabled,
     refreshKey,
   ]);
 

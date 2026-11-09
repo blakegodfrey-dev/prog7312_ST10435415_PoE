@@ -200,6 +200,40 @@ test('Command Stream selections remain separate from Telemetry selections', asyn
   assert.equal(field('History view').value, 'selected');
 });
 
+test('Historical SAST dates reach the API as UTC and survive module navigation', async () => {
+  await openPh();
+  await input('From (SAST)', '2026-10-07T10:00');
+  await input('To (SAST)', '2026-10-07T12:00');
+  await waitUntil(() => requests.some(r => r.url.searchParams.get('fromUtc') === '2026-10-07T08:00:00.000Z' &&
+    r.url.searchParams.get('toUtc') === '2026-10-07T10:00:00.000Z'));
+  assert.match(document.getElementById('history-timezone').textContent, /SAST.*UTC\+02:00/);
+  await click('Next');
+  await waitUntil(() => document.querySelector('.pagination')?.textContent.includes('Page 2'));
+  await navigate('Command Stream');
+  await navigate('Telemetry');
+  await waitUntil(() => document.querySelector('.pagination'));
+  assert.equal(field('From (SAST)').value, '2026-10-07T10:00');
+  assert.equal(field('To (SAST)').value, '2026-10-07T12:00');
+  assert.match(document.querySelector('.pagination').textContent, /Page 2/);
+  await click('Clear dates');
+  await waitUntil(() => document.querySelector('.pagination')?.textContent.includes('Page 1'));
+  assert.equal(field('From (SAST)').value, '');
+});
+
+test('Reversed dates stop history requests and hide stale results until corrected', async () => {
+  await openPh();
+  await input('From (SAST)', '2026-10-07T16:00');
+  const before = requests.filter(r => r.url.pathname.startsWith('/api/telemetry/sensors/')).length;
+  await input('To (SAST)', '2026-10-07T14:00');
+  await act(async () => delay(20));
+  assert.equal(requests.filter(r => r.url.pathname.startsWith('/api/telemetry/sensors/')).length, before);
+  assert.match(document.querySelector('.telemetry-history [role="alert"]').textContent, /cannot be after/);
+  assert.equal(document.querySelector('.telemetry-table'), null);
+  assert.equal(button('Refresh').disabled, true);
+  await click('Clear dates');
+  await waitUntil(() => document.querySelector('.telemetry-table'));
+});
+
 test('Superseded slow responses are ignored even when the transport resolves after abort', async () => {
   override = async (url) => {
     if (url.pathname === '/api/sensors' && url.searchParams.get('search') === 'slow') {
