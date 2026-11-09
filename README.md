@@ -1,4 +1,4 @@
-# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillar 1
+# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillars 1/2
 
 Student number: **ST10435415**
 Module: **PROG7312 / AAPD7112 — Programming 3B / Advanced Application Development**
@@ -11,11 +11,13 @@ Smart-X simulates a South African hydroponic facility whose environmental sensor
 |---|---|
 | Sensor Data Ingestion and Telemetry | Implemented and enabled |
 | Real-Time Command Stream and History | Implemented and enabled |
-| Network Topology and Mesh Routing | Visible and disabled; reserved for the final PoE |
+| Network Topology and Mesh Routing | Graph/routing API implemented in Pillar 2; dashboard pending Pillar 3 |
 
 Part 1 registration, typed ingestion, deployment validation, attachments and anomaly investigation are retained. Part 2 adds FIFO and priority processing, a live device registry, ordered recent history, unique incidents and recovery, acknowledged commands, Stack-backed Undo, and learned suggestions. Module navigation preserves filters, selections and registration drafts within the current browser application session.
 
-Part 3 **Pillar 1** adds a full historical AVL index, inclusive sensor/time queries, filtered pagination, restart hydration and SAST date controls. Begin with [Pillar 1 setup and local checks](START_HERE_PILLAR_1.md). See [implementation](docs/pillar1/Implementation.md), [verification](docs/pillar1/Verification.md) and [changed files](docs/pillar1/Patch_Files.md). Network topology remains a later pillar.
+Part 3 **Pillar 1** adds a full historical AVL index, inclusive sensor/time queries, filtered pagination, restart hydration and SAST date controls. Begin with [Pillar 1 setup and local checks](START_HERE_PILLAR_1.md). See [implementation](docs/pillar1/Implementation.md), [verification](docs/pillar1/Verification.md) and [changed files](docs/pillar1/Patch_Files.md). Pillar 1 was subsequently verified locally and signed off by the user.
+
+Part 3 **Pillar 2** now adds the weighted adjacency graph, BFS gateway reachability, Prim minimum spanning forest with a real min-heap frontier, MAC/ID routes and failure/recovery API. Start with [Pillar 2 setup and demo](START_HERE_PILLAR_2.md), then [implementation](docs/pillar2/Implementation.md), [verification](docs/pillar2/Verification.md) and [changed files](docs/pillar2/Patch_Files.md). The existing twelve simulated facility sensors retain their IDs/MACs. The dashboard is intentionally left for Pillar 3.
 
 ## Setup
 
@@ -203,6 +205,9 @@ Incident labels and diagnostic notes persist against the incident. Per-sensor at
 | Native telemetry | `/api/telemetry/float`, `/integer`, `/boolean` |
 | Atomic mixed batches | `/api/telemetry/bulk` |
 | Full sensor history | `/api/telemetry/sensors/{sensorId}` |
+| Mesh snapshot, BFS, Prim forest/edges/cost | `/api/mesh` |
+| Selected route by ID or MAC | `/api/mesh/route?nodeId=...` or `?macAddress=...` |
+| Development mesh failure simulation | `PUT /api/mesh/nodes/{id}/availability`, `PUT /api/mesh/links/{id}/availability`, `DELETE /api/mesh/simulation` |
 | Live MAC registry/history | `/api/live/devices`, `/api/live/devices/{macAddress}`, `/api/live/history` |
 | Operational snapshot | `/api/operations/dashboard` |
 | Commands and Undo | `/api/operations/commands`, `/api/operations/undo` |
@@ -215,7 +220,7 @@ Use the OpenAPI document for full contracts. Typed telemetry must contain an exp
 
 The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; see [Testing summary](docs/part2/Testing_Summary.md). These are earlier results; current Pillar 1 checks and remaining SQL/browser checks are recorded separately in [Pillar 1 verification](docs/pillar1/Verification.md).
 
-See [Demo checklist](docs/part2/Demo_Checklist.md) for the recording plan. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. Network topology remains final-PoE scope. Hardware and Docker are optional.
+See [Demo checklist](docs/part2/Demo_Checklist.md) for the recording plan. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. The mesh API is implemented; the topology dashboard remains Pillar 3. Hardware and Docker are optional.
 
 Before submission, review `git diff --check`, `git status --short` and the staged diff. Keep local `.env`, credentials, SQL database files, uploaded files, `bin`, `obj`, `node_modules` and `dist` out of source commits. Push the final reviewed changes, verify the remote commit, and record its hash alongside test evidence and the demo URL. The current test results are not yet tied to a supplied final commit hash.
 

@@ -440,5 +440,6 @@ uploads/
 
 # Local configuration / secrets
 artifacts/pillar1-demo.json
+artifacts/pillar2-demo.json
 *.user
 *.suo

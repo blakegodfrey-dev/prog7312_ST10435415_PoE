@@ -45,7 +45,8 @@ public sealed class OperationsHarness : IAsyncDisposable
     public Guid NodeId { get; } = Guid.NewGuid();
     public Guid PumpId { get; } = Guid.NewGuid();
     public Guid MoistureId { get; } = Guid.NewGuid();
-    public async Task StartAsync(int capacity = 5000, int delay = 0, string? database = null, bool useSystemClock = false)
+    public async Task StartAsync(int capacity = 5000, int delay = 0, string? database = null, bool useSystemClock = false,
+        Action<IServiceCollection>? configure = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -61,6 +62,7 @@ public sealed class OperationsHarness : IAsyncDisposable
         builder.Services.AddDbContext<SmartXDbContext>(o => o.UseInMemoryDatabase(name).AddInterceptors(Failure));
         builder.Services.AddControllers(o => o.Filters.Add<InvalidTelemetryFilter>()).AddApplicationPart(typeof(TelemetryController).Assembly);
         builder.Services.AddProblemDetails();
+        configure?.Invoke(builder.Services);
         App = builder.Build(); App.UseExceptionHandler(); App.MapControllers();
         await using (var scope = App.Services.CreateAsyncScope())
         {

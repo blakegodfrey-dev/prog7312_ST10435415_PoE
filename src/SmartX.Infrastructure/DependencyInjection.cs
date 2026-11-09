@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using SmartX.Application.Attachments;
 using SmartX.Application.Live;
 using SmartX.Application.History;
+using SmartX.Application.Mesh;
+using SmartX.Infrastructure.Mesh;
 using SmartX.Infrastructure.Live;
 using SmartX.Infrastructure.Attachments;
 using SmartX.Infrastructure.Persistence;
@@ -62,6 +64,11 @@ public static class DependencyInjection
         services.AddSingleton<HistoricalTelemetryIndex>();
         services.AddScoped<LiveTelemetryService>();
         services.AddScoped<SmartXDatabaseSeeder>();
+        services.AddOptions<MeshNetworkOptions>().Bind(configuration.GetSection("MeshNetwork"))
+            .PostConfigure(o => o.Links ??= MeshDemoTopology.CreateLinks(o.GatewayId))
+            .Validate(MeshNetworkOptions.IsValid, "Invalid mesh gateway, links or wireless cost inputs.").ValidateOnStart();
+        services.AddSingleton<MeshSimulationState>();
+        services.AddScoped<MeshNetworkService>();
 
         services.AddOptions<OperationsOptions>().Bind(configuration.GetSection("Operations"))
             .Validate(o => o.QueueCapacity > 0 && o.QueueCapacity <= 100000 && o.StaleSeconds > 0 && o.DisconnectedSeconds > o.StaleSeconds && o.ScanSeconds > 0 && o.ProcessingDelayMilliseconds is >= 0 and <= 1000, "Invalid operation limits.").ValidateOnStart();
