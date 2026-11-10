@@ -1,4 +1,4 @@
-# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillars 1-3
+# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillars 1-4
 
 Student number: **ST10435415**
 Module: **PROG7312 / AAPD7112 — Programming 3B / Advanced Application Development**
@@ -19,11 +19,13 @@ Part 3 **Pillar 1** adds a full historical AVL index, inclusive sensor/time quer
 
 Part 3 **Pillar 2** now adds the weighted adjacency graph, BFS gateway reachability, Prim minimum spanning forest with a real min-heap frontier, MAC/ID routes and failure/recovery API. Start with [Pillar 2 setup and demo](START_HERE_PILLAR_2.md), then [implementation](docs/pillar2/Implementation.md), [verification](docs/pillar2/Verification.md) and [changed files](docs/pillar2/Patch_Files.md). The existing twelve simulated facility sensors retain their IDs/MACs. The user has signed off the SQL-backed demo/verify and local regression checks.
 
-Part 3 **Pillar 3** enables the Network dashboard with actual wireless/Prim edges, gateway health, MAC/ID route selection, failure/recovery controls and shared sensor diagnostics/history. Historical charts now use recorded time, preserving equal timestamps at the same X position. Start with [Pillar 3 setup and local checks](START_HERE_PILLAR_3.md); see [implementation](docs/pillar3/Implementation.md), [verification](docs/pillar3/Verification.md) and [changed files](docs/pillar3/Patch_Files.md). Local SQL-backed dashboard sign-off remains pending.
+Part 3 **Pillar 3** enables the Network dashboard with actual wireless/Prim edges, gateway health, MAC/ID route selection, failure/recovery controls and shared sensor diagnostics/history. Historical charts now use recorded time, preserving equal timestamps at the same X position. Start with [Pillar 3 setup and local checks](START_HERE_PILLAR_3.md); see [implementation](docs/pillar3/Implementation.md), [verification](docs/pillar3/Verification.md) and [changed files](docs/pillar3/Patch_Files.md). The user signed off the local SQL-backed dashboard and all four automated suites on 10 November 2026.
+
+Part 3 **Pillar 4** updates the affected development dependencies and adds `node scripts/verify-final.mjs`, which saves builds, audits, all test counts and the AVL benchmark together and stops at the first failed check. Begin with [Pillar 4 setup and final checks](START_HERE_PILLAR_4.md). See [dependency rationale](docs/pillar4/Dependency_Notes.md), [verification](docs/pillar4/Verification.md) and [changed files](docs/pillar4/Patch_Files.md). Local Pillar 4 Windows/SQL final sign-off remains pending.
 
 ## Setup
 
-Required: .NET 10 SDK, Node.js **22.12 or later in the 22.x line, or a supported newer release**, npm, Git, and SQL Server Express LocalDB (`MSSQLLocalDB`) or another configured SQL Server. Use `npm.cmd` in Windows PowerShell to avoid the `npm.ps1` execution-policy issue.
+Required: .NET 10 SDK, Node.js **22.13 or later in the 22.x line, or Node 24+**, npm, Git, and SQL Server Express LocalDB (`MSSQLLocalDB`) or another configured SQL Server. Use `npm.cmd` in Windows PowerShell to avoid the `npm.ps1` execution-policy issue.
 
 Run from the repository root:
 
@@ -66,6 +68,9 @@ npm.cmd run dev -- --host localhost --port 5173 --strictPort
 Open **http://localhost:5173**. Restart Vite after changing `.env`.
 
 ## Automated verification
+
+After applying Pillar 4, stop the API/Vite/watcher and run `node scripts/verify-final.mjs` from the repository root. Playwright Chromium must already be installed. It executes the checks below, saves test counters/audits/benchmark evidence under `artifacts/pillar4-checks/`, and stops on failure. The [Pillar 4 guide](START_HERE_PILLAR_4.md) supplies the separate live SQL/restart checks. The individual commands remain available for focused debugging.
+
 
 From the repository root:
 
@@ -223,7 +228,7 @@ Use the OpenAPI document for full contracts. Typed telemetry must contain an exp
 
 ## Verification and submission
 
-Current Pillar 3 checks on **9 November 2026** passed: Release rebuild with warnings as errors, **242 backend tests, 28 client unit tests, 22 rendered integration tests, 13 Chromium browser tests**, lint and production build. An additional actual API + React smoke check with EF InMemory passed graph/route/failure/history/watcher workflows. Pillars 1/2 have user-reported SQL-backed sign-off; Pillar 3's local SQL/browser check remains pending. See [Pillar 3 verification](docs/pillar3/Verification.md). The six npm findings reported locally (four moderate, two high) remain for Pillar 4; the earlier audit-clear result below is historical.
+Current Pillar 3 checks on **9 November 2026** passed: Release rebuild with warnings as errors, **242 backend tests, 28 client unit tests, 22 rendered integration tests, 13 Chromium browser tests**, lint and production build. An additional actual API + React smoke check with EF InMemory passed graph/route/failure/history/watcher workflows. Pillars 1-3 now have user-reported local sign-off, including all four suites and the SQL-backed dashboard check. See [Pillar 3 verification](docs/pillar3/Verification.md). Pillar 4 subsequently resolves the six npm findings: full npm and transitive NuGet audits report zero known findings on 10 November 2026. Its full automated command passes the same 242/28/22/13 suites plus lint/build and the 10k/50k/100k benchmark; see `docs/pillar4/Verification.md`. Repeat locally for final Pillar 4 sign-off. The earlier Part 2 audit result below is historical.
 
 
 The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; these were recorded during the earlier Part 2 verification. These are earlier Part 2 results; current pillar results and limitations are recorded in `docs/pillar1`, `docs/pillar2` and `docs/pillar3`.
