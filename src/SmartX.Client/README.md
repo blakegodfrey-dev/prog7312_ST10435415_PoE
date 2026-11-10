@@ -1,16 +1,31 @@
-# React + Vite
+# Smart-X React client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The client contains Telemetry, Command Stream and Network Topology workspaces. It uses React/Vite and communicates with the .NET 10 API; SQL access stays on the server.
 
-Currently, two official plugins are available:
+Use the [repository setup guide](../../README.md#setup-and-use) for complete database/API preparation and [implementation guide](../../docs/Implementation_Guide.md#5-apiui-integration-and-concurrency) for request/state behaviour. Required Node: **22.13+ in 22.x or 24+**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From this directory in PowerShell:
 
-## React Compiler
+```powershell
+npm.cmd ci
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm.cmd run dev -- --host localhost --port 5173 --strictPort
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Set `VITE_API_BASE_URL=http://localhost:5075` in local `.env` and restart Vite after changes. Open **http://localhost:5173**, the API's configured CORS origin. Keep local configuration out of source commits.
 
-## Expanding the ESLint configuration
+```powershell
+npm.cmd test
+npm.cmd run test:integration
+npx.cmd playwright install chromium
+npm.cmd run test:browser
+npm.cmd run lint
+npm.cmd run build
+npm.cmd audit
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The verified counts are **28 unit / 22 integration / 13 browser** with no failures/skips. Integration/browser suites use controlled responses; browser tests start Vite on `127.0.0.1:4174` and need that port free. For the full solution, stop API/Vite/watch and run `node scripts/verify-final.mjs` from the repository root; see the [verification summary](../../docs/Verification_Summary.md).
+
+Network graph edges/routes come from the mesh API. Selected sensor diagnostics reuse Telemetry state; Command Stream retains separate choices. Late/aborted reads cannot replace a newer selection; pending mutations retain feedback through navigation. Reload starts fresh workspace state. History times use explicit SAST conversion and equal recorded instants share a chart X coordinate. Positions are schematic and energy costs simulated.
+
+The demo video is **pending recording after Pillar 7 work**; no recording or URL is claimed by the client tests.

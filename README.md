@@ -1,251 +1,236 @@
-# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillars 1-4
+# Smart-X IoT Mesh Ecosystem
 
-Student number: **ST10435415**
-Module: **PROG7312 / AAPD7112 — Programming 3B / Advanced Application Development**
+**PROG7312 / AAPD7112 - Final PoE | ST10435415**
 
-Smart-X simulates a South African hydroponic facility whose environmental sensors, power meters and ESP32 actuators communicate with a .NET 10 gateway through HTTP. React displays native telemetry, contextual anomalies, connection health, operational commands and suggestions learned from operator behaviour. SQL Server stores the durable records.
+Smart-X simulates a hydroponic facility with ESP32-style environmental sensors, power meters, pumps, valves and relays. React provides three connected workspaces; an ASP.NET Core .NET 10 API validates telemetry, processes commands and analyses routes; SQL Server/EF Core stores durable records. Custom AVL trees serve historical ranges, while a weighted graph, BFS and Prim with a min-heap analyse the simulated mesh.
 
-## Implemented scope
+| Workspace | Main use |
+| --- | --- |
+| Sensor Data Ingestion and Telemetry | Register typed sensors; investigate health, anomalies, date-filtered history and attachments. |
+| Real-Time Command Stream and History | Inspect live activity, FIFO/critical processing, incident labels/notes, commands, Undo and history-driven suggestions. |
+| Network Topology and Mesh Routing | View the gateway/links, find a sensor by MAC/ID, trace its tree route, simulate failures and open linked history. |
 
-| Home module | Status |
-|---|---|
-| Sensor Data Ingestion and Telemetry | Implemented and enabled |
-| Real-Time Command Stream and History | Implemented and enabled |
-| Network Topology and Mesh Routing | Implemented and enabled: topology, health, routes and linked history |
+**Verified milestone, 10 November 2026:** Pillars 1-4 are signed off. Windows checks passed **242 backend, 28 unit, 22 integration and 13 browser tests**, builds/lint and both dependency audits. Pillar 5 supplies the documentation below; final report/recommendations and feedback/submission preparation remain Pillars 6/7. **The demo video has not been recorded. It is planned after Pillar 7 work; its URL is pending.**
 
-Part 1 registration, typed ingestion, deployment validation, attachments and anomaly investigation are retained. Part 2 adds FIFO and priority processing, a live device registry, ordered recent history, unique incidents and recovery, acknowledged commands, Stack-backed Undo, and learned suggestions. Module navigation preserves filters, selections and registration drafts within the current browser application session.
+## Documentation
 
-Part 3 **Pillar 1** adds a full historical AVL index, inclusive sensor/time queries, filtered pagination, restart hydration and SAST date controls. Begin with [Pillar 1 setup and local checks](START_HERE_PILLAR_1.md). See [implementation](docs/pillar1/Implementation.md), [verification](docs/pillar1/Verification.md) and [changed files](docs/pillar1/Patch_Files.md). Pillar 1 was subsequently verified locally and signed off by the user.
+- [Setup and use](#setup-and-use)
+- [Demonstrations](#demonstrations)
+- [Structures and algorithms](#structures-and-algorithms)
+- [Verified results and performance](#verified-results-and-performance)
+- [API entry points](#api-entry-points)
+- [Troubleshooting and limits](#troubleshooting-and-limits)
+- [Implementation guide](docs/Implementation_Guide.md): architecture, exact code excerpts, complexity, concurrency and integration.
+- [Evidence map](docs/Evidence_Map.md): assessed requirements linked to code, API/UI, tests and observed results.
+- [Verification summary](docs/Verification_Summary.md): dated Windows results and benchmark provenance.
 
-Part 3 **Pillar 2** now adds the weighted adjacency graph, BFS gateway reachability, Prim minimum spanning forest with a real min-heap frontier, MAC/ID routes and failure/recovery API. Start with [Pillar 2 setup and demo](START_HERE_PILLAR_2.md), then [implementation](docs/pillar2/Implementation.md), [verification](docs/pillar2/Verification.md) and [changed files](docs/pillar2/Patch_Files.md). The existing twelve simulated facility sensors retain their IDs/MACs. The user has signed off the SQL-backed demo/verify and local regression checks.
+## Setup and use
 
-Part 3 **Pillar 3** enables the Network dashboard with actual wireless/Prim edges, gateway health, MAC/ID route selection, failure/recovery controls and shared sensor diagnostics/history. Historical charts now use recorded time, preserving equal timestamps at the same X position. Start with [Pillar 3 setup and local checks](START_HERE_PILLAR_3.md); see [implementation](docs/pillar3/Implementation.md), [verification](docs/pillar3/Verification.md) and [changed files](docs/pillar3/Patch_Files.md). The user signed off the local SQL-backed dashboard and all four automated suites on 10 November 2026.
+### Prerequisites and configuration
 
-Part 3 **Pillar 4** updates the affected development dependencies and adds `node scripts/verify-final.mjs`, which saves builds, audits, all test counts and the AVL benchmark together and stops at the first failed check. Begin with [Pillar 4 setup and final checks](START_HERE_PILLAR_4.md). See [dependency rationale](docs/pillar4/Dependency_Notes.md), [verification](docs/pillar4/Verification.md) and [changed files](docs/pillar4/Patch_Files.md). Local Pillar 4 Windows/SQL final sign-off remains pending.
+Use Windows with SQL Server Express LocalDB (`MSSQLLocalDB`), or another explicitly configured SQL Server; .NET **10 SDK**; Node **22.13+ in the 22.x line or 24+**; npm and Git. The reported Windows run used .NET SDK **10.0.400** and npm **11.13.0**. The committed lockfile supplies exact client dependencies. Physical radios and Docker are optional and are not part of these run instructions.
 
-## Setup
+Clone the submitted GitHub repository or open its existing checkout. Run commands from the folder containing **`SmartX.sln`**. When applying a patch, copy its contents into that root, retaining `.git`, client `.env`, connection configuration, uploads and local `artifacts` manifests. API `Contracts` and `Configuration` belong directly under `src/SmartX.Api`, alongside `Controllers`.
 
-Required: .NET 10 SDK, Node.js **22.13 or later in the 22.x line, or Node 24+**, npm, Git, and SQL Server Express LocalDB (`MSSQLLocalDB`) or another configured SQL Server. Use `npm.cmd` in Windows PowerShell to avoid the `npm.ps1` execution-policy issue.
-
-Run from the repository root:
+In PowerShell, use `npm.cmd` to avoid the `npm.ps1` execution-policy issue. Stop API/Vite/watch before a rebuild to avoid locked files.
 
 ```powershell
 dotnet restore .\SmartX.sln
+if ($LASTEXITCODE -ne 0) { throw "Restore failed." }
 dotnet build .\SmartX.sln -c Release --no-restore -t:Rebuild -warnaserror
 if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
 
 Push-Location .\src\SmartX.Client
 try {
     npm.cmd ci
-    if ($LASTEXITCODE -ne 0) { throw "Client dependency installation failed." }
+    if ($LASTEXITCODE -ne 0) { throw "Client installation failed." }
+    if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 } finally { Pop-Location }
-
-if (-not (Test-Path .\src\SmartX.Client\.env)) {
-    Copy-Item .\src\SmartX.Client\.env.example .\src\SmartX.Client\.env
-}
 ```
 
-The client configuration must point to `http://localhost:5075`. CORS permits `http://localhost:5173`; use that browser origin.
+The client `.env` must contain `VITE_API_BASE_URL=http://localhost:5075`. It is local configuration, not a secret to commit. Restart Vite after changing it. The API's configured CORS origin is **`http://localhost:5173`**; use that exact client origin.
 
-### Terminal 1: API and test database
+### Terminal 1 - API and SQL
+
+From the repository root, use a test database because the demonstration scripts retain sensors, readings, interactions and commands:
 
 ```powershell
-$env:ConnectionStrings__SmartXDatabase = "Server=(localdb)\MSSQLLocalDB;Database=SmartXTestDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+$env:ConnectionStrings__SmartXDatabase = "Server=(localdb)\MSSQLLocalDB;Database=SmartXPillar1TestDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
 dotnet run --project .\src\SmartX.Api -c Release --no-build --launch-profile http
 ```
 
-The HTTP launch profile selects Development. Development startup applies the committed EF Core migrations and seeds an empty deployment hierarchy. The baseline contains 9 deployment locations, 12 sensors and 3,456 historical typed readings, including deliberate anomalies. Existing deployment data is preserved. Use a separate test database because simulator scenarios register devices and persist readings, commands and interactions.
+The `http` profile selects Development and listens on **5075**. Development startup applies the committed EF migrations. If the deployment table is empty, seeding creates **9 deployment locations, 12 sensors and 3,456 typed historical readings** (288 per sensor, five-minute intervals), including deliberate anomalies. If any deployment nodes already exist, seeding is skipped; it does not replace an existing facility. Seeded historical records do not establish current gateway contact. Runtime simulator readings enter through the API.
 
-Health: `http://localhost:5075/api/health`. OpenAPI JSON: `http://localhost:5075/openapi/v1.json`. A Swagger UI is not installed. For another SQL Server instance, change the environment connection string. Production requires explicit configuration and database preparation; Development seeding does not run there.
+Use your existing database to preserve the earlier 10,007-reading demonstration. A fresh database receives the baseline seed, not your local demonstration manifests or uploads. For another SQL Server, change the environment connection string. Production needs deliberate database/configuration preparation; Development migration/seeding and demonstration controls must not be assumed there.
 
-### Terminal 2: React
+Health: <http://localhost:5075/api/health>. Development OpenAPI JSON: <http://localhost:5075/openapi/v1.json>. A Swagger UI is not installed.
 
-```powershell
-cd .\src\SmartX.Client
-npm.cmd run dev -- --host localhost --port 5173 --strictPort
-```
-
-Open **http://localhost:5173**. Restart Vite after changing `.env`.
-
-## Automated verification
-
-After applying Pillar 4, stop the API/Vite/watcher and run `node scripts/verify-final.mjs` from the repository root. Playwright Chromium must already be installed. It executes the checks below, saves test counters/audits/benchmark evidence under `artifacts/pillar4-checks/`, and stops on failure. The [Pillar 4 guide](START_HERE_PILLAR_4.md) supplies the separate live SQL/restart checks. The individual commands remain available for focused debugging.
-
+### Terminal 2 - client
 
 From the repository root:
 
 ```powershell
-dotnet test .\SmartX.sln -c Release --no-build --no-restore
+Push-Location .\src\SmartX.Client
+npm.cmd run dev -- --host localhost --port 5173 --strictPort
+# After stopping Vite with Ctrl+C:
+Pop-Location
 ```
 
-From `src/SmartX.Client`:
+Open **http://localhost:5173**. Home and the navigation expose all three workspaces. Choices survive module navigation within the current browser application; reloading creates fresh workspace choices while server records remain.
+
+### Automated verification
+
+Stop the API, Vite and watcher. Install the existing Playwright version's Chromium once if necessary, then run the final checks from the repository root:
 
 ```powershell
-npm.cmd test
-npm.cmd run test:integration
-npm.cmd run lint
-npm.cmd run build
-npm.cmd audit
-```
-
-The integration suite renders React through Vite and JSDOM using controlled HTTP responses. Backend tests include real HTTP/controller tests with test persistence providers. These checks complement live SQL-backed scenarios; they do not all use SQL Server.
-
-An additional browser suite is available:
-
-```powershell
+Push-Location .\src\SmartX.Client
 npx.cmd playwright install chromium
-npm.cmd run test:browser
+Pop-Location
+node .\scripts\verify-final.mjs
 ```
 
-It starts its own Vite server on `127.0.0.1:4174`, intercepts API responses, and requires that port to be free. It contains 13 browser tests, separate from the backend test count. To keep actual demonstration sensors online during manual Network checks, run `node scripts/demo-mesh.mjs http://localhost:5075 watch` from the repository root after the mesh demo/verify; Ctrl+C stops heartbeats. See the Pillar 3 guide for the full UI check.
+The command stops at the first failed stage and saves `summary.json`, per-stage stdout/stderr, backend TRX and `avl-benchmark.csv` under `artifacts/pillar4-checks/<timestamp>/`. It runs restore/Release rebuild, backend tests, transitive NuGet audit, `npm ci`/full npm audit, all client suites, lint/build and the 10k/50k/100k AVL benchmark. It inspects audit JSON and discovered test counts as well as exit codes. Registries must be reachable; browser tests start their own Vite server on **127.0.0.1:4174**, which must be free.
 
-## Live Part 2 scenarios
+The integration/browser suites use controlled API responses. Backend HTTP tests use test persistence providers, plus SQL translation/model checks. They complement the separate real SQL demonstrations; not every automated test uses SQL Server. See [the final-check guide](START_HERE_PILLAR_4.md) for individual/live steps and [the dated dependency notes](docs/pillar4/Dependency_Notes.md) for the scoped minimatch override and zero-known-findings result.
 
-Keep the API running. Run scripts from the repository root in a third terminal. Every reading enters the HTTP API; the scenarios do not insert telemetry directly into SQL.
+## Demonstrations
 
-```powershell
-node .\scripts\simulate-operations.mjs http://localhost:5075 normal
-node .\scripts\simulate-operations.mjs http://localhost:5075 lifecycle
-node .\scripts\simulate-operations.mjs http://localhost:5075 learning
-```
+Start the Development API before these commands. Run scripts from the repository root in terminal 3. Keep local manifests; do not commit machine-specific data/configuration.
 
-| Scenario | Assertions |
-|---|---|
-| `normal` | Native float/integer/Boolean ingestion, preserved zero/false, acknowledged actuator command, Undo, wrong-type rejection and valid-reading recovery |
-| `lifecycle` | Repeated abnormal readings retain one incident ID; real timeout disconnects the device; heartbeat restores connection; range recovery clears the incident; recurrence creates a new ID |
-| `learning` | New target starts without learned recommendations; three matching historical actions produce a suggestion; subsequent conflicting behaviour changes the top action or its confidence |
+| Goal | Command / behaviour |
+| --- | --- |
+| Create the identifiable Node A sample and 10k history | `node scripts/demo-history.mjs http://localhost:5075 seed 10000` - creates new demonstration sensors/readings through HTTP and saves `artifacts/pillar1-demo.json`. Run once for a fresh demonstration. |
+| Verify retained history | `node scripts/demo-history.mjs http://localhost:5075 verify` - uses the saved manifest. For restart evidence, stop/restart the actual API against the same database before verifying; the script cannot restart it for you. Do not reseed first. |
+| Exercise graph/BFS/Prim and failures | `node scripts/demo-mesh.mjs http://localhost:5075 demo` - validates reachability, forest costs against an independent oracle, MAC/ID paths, node/link isolation, gateway failure and recovery; saves `artifacts/pillar2-demo.json`. |
+| Recheck saved mesh | `node scripts/demo-mesh.mjs http://localhost:5075 verify` - refreshes actual API heartbeats and checks the saved baseline/route. |
+| Keep mesh demo sensors online | `node scripts/demo-mesh.mjs http://localhost:5075 watch` - genuine API heartbeat requests every ten seconds for saved mesh sensor IDs. Ctrl+C stops it; it does not clear failure overrides. |
+| Clear interrupted routing failures | `node scripts/demo-mesh.mjs http://localhost:5075 reset` - clears only process-local routing overrides; actual gateway health still controls availability. |
 
-Each mode first performs the normal checks and registers three new simulation sensors. The final suffix identifies their names in the UI. `lifecycle` waits approximately **93 seconds** with the default disconnection threshold. After a simulator exits, devices naturally become stale and disconnected unless another process sends heartbeats.
+For the verified original sample, search **`Pillar1 Node A moisture 11FD0444`** and set **8 November 2026, 14:00:00-16:00:00 SAST**. It returns five records: 45%, 48%, invalid 10%, 52%, 55%, with both 15:00 readings retained. The table is newest first; equal chart instants share X. A new seed prints its own date/name/IDs; use those rather than assuming this earlier manifest exists in a fresh clone.
 
-### FIFO backlog and critical priority bypass
+In Network, select **Air Humidity** by name, MAC or ID. With fresh contacts its default tree path goes through Air Temperature to the gateway. Inspect a declared link/node, simulate a failure and clear it; the returned route recomputes through available links or explicitly reports no route. The selected sensor opens shared Telemetry history and its separate Command Stream context. Unlinked demonstration sensors remain isolated; registration does not invent wireless neighbours. Use text health labels and keyboard Enter/Space as well as graph colours.
 
-Stop the API with Ctrl+C. In the same API terminal, retain the test database configuration and start with a temporary 100 ms processing delay:
+### Original operational regression
+
+The full operational scenario includes genuine disconnection, so allow approximately **93 seconds** for the default timeout phase. To observe a FIFO backlog, stop the API and start it in terminal 1 with the existing test database and a temporary 100 ms processing delay:
 
 ```powershell
 $env:Operations__ProcessingDelayMilliseconds = "100"
 dotnet run --project .\src\SmartX.Api -c Release --no-build --launch-profile http
 ```
 
-Run in the third terminal:
+In terminal 3:
 
 ```powershell
-node .\scripts\simulate-operations.mjs http://localhost:5075 priority
+node .\scripts\simulate-operations.mjs http://localhost:5075 all
 ```
 
-The script sends 40 concurrent ordinary readings, observes a backlog, then submits a critical power reading. It asserts that the critical packet finishes while ordinary packets still wait, verifies the critical incident, and submits a normal recovery value. Ordinary packets use FIFO order. Critical work bypasses waiting ordinary work; it does not interrupt an in-flight database write.
+It registers three scenario sensors and verifies native float/int/bool, acknowledged command/Undo, type rejection, critical-priority bypass while ordinary work waits, unique incidents, timeout/heartbeat/range recovery and changing learned-action evidence. Default queue capacity is 5,000; the backlog demonstration requires at least 100. Individual `normal`, `priority`, `lifecycle` and `learning` modes are available.
 
-The queue capacity must be at least 100; the default is 5,000. After the demonstration, stop the API, remove the temporary delay, and restart:
+Afterwards stop the API, remove the temporary delay in its terminal and restart against the same database:
 
 ```powershell
 Remove-Item Env:\Operations__ProcessingDelayMilliseconds -ErrorAction SilentlyContinue
 dotnet run --project .\src\SmartX.Api -c Release --no-build --launch-profile http
 ```
 
-### MAC dictionary lookup and ordered history
+## Structures and algorithms
 
-With the API running, select one registered device and resolve its lowercase MAC through the live endpoint:
+The [implementation guide](docs/Implementation_Guide.md) gives the complete explanation, source excerpts and qualified complexity table. These structures drive API results and UI behaviour:
 
-```powershell
-$devices = Invoke-RestMethod "http://localhost:5075/api/live/devices"
-$device = $devices | Select-Object -First 1
-if (-not $device) { throw "Register a device first." }
-$mac = [uri]::EscapeDataString($device.macAddress.ToLowerInvariant())
-$resolved = Invoke-RestMethod "http://localhost:5075/api/live/devices/$mac"
-if ($resolved.id -ne $device.id) { throw "MAC lookup returned the wrong device." }
-$history = Invoke-RestMethod "http://localhost:5075/api/live/history?macAddress=$mac&limit=100"
-$history.readings | Format-Table recordedAtUtc, valueKind, floatValue, integerValue, booleanValue
+| Structure / algorithm | Role and reason |
+| --- | --- |
+| Per-sensor custom AVL | Keeps chronological history balanced even for sorted/out-of-order arrival. Composite UTC-time/packet-ID keys preserve duplicates. Subtree counts enable inclusive ranges and paged retrieval without a full-history scan. |
+| Weighted undirected adjacency graph | Represents registered/configured ESP32 vertices and actual declared wireless links. Unavailable endpoints/links are excluded from usable adjacency. |
+| BFS with `Queue<Guid>` and visited set | Computes gateway reachability through available neighbours; visited-on-enqueue prevents cycle repetition. |
+| Lazy Prim with `PriorityQueue` min-heap | Chooses the cheapest frontier link, skips stale cycle entries, and starts another component when needed. Returns an actual minimum spanning forest. |
+| Dictionaries, queues, Stack and sets from Parts 1/2 | Preserve MAC/ID lookup, recent ordered history, ordinary FIFO/critical priority, successful-command Undo and unique recoverable incidents. |
+
+For example, the actual AVL query counts the interval using two ranks before collecting its page:
+
+<!-- source: src/SmartX.Application/History/TelemetryAvlTree.cs; excerpt: avl-ranks -->
+```csharp
+var lower = fromUtc.HasValue ? CountBefore(fromUtc.Value, false, isValid, ref visited) : 0;
+var upper = toUtc.HasValue ? CountBefore(toUtc.Value, true, isValid, ref visited) : Size(_root, isValid);
+var matched = upper - lower;
 ```
 
-Canonical MACs key a `Dictionary<string, DeviceSnapshot>`, with an ID-to-MAC dictionary for GUID ingestion routes. Lookups have expected O(1) complexity; the HTTP/database response time is not claimed to be constant. Run collection regression tests from the repository root:
+The Prim loop selects available cut edges from its heap; `Visit` then enqueues the next frontier:
 
-```powershell
-dotnet test .\SmartX.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~SmartX.Tests.Live'
+<!-- source: src/SmartX.Application/Mesh/MeshAlgorithms.cs; excerpt: prim-cut-selection -->
+```csharp
+while (frontier.TryDequeue(out var edge, out _))
+{
+    token.ThrowIfCancellationRequested();
+    dequeues++;
+    if (visited.Contains(edge.SourceId) && visited.Contains(edge.TargetId)) continue; // Stale/cycle edge.
+    var next = visited.Contains(edge.SourceId) ? edge.TargetId : edge.SourceId;
+    selected.Add(edge);
+    edges.Add(edge.Id);
+    cost += edge.PowerCostMilliJoules;
+    Visit(next);
+}
 ```
 
-The live tests cover registry lookup, initialization, chronological ordering, equal-timestamp records, out-of-order arrivals and bounded retention. Recent history uses `SortedDictionary<DateTimeOffset, List<TelemetrySnapshot>>`; each timestamp bucket preserves separate packet IDs. The newest recorded reading remains current when an older reading arrives later.
+These are excerpts from [TelemetryAvlTree](src/SmartX.Application/History/TelemetryAvlTree.cs) and [MeshAlgorithms](src/SmartX.Application/Mesh/MeshAlgorithms.cs), not standalone programs. With `n` readings, unfiltered tree insertion costs O(log n) and a page of `p` results costs O(log n + p); the sparse validity-filtered case is qualified in the guide. BFS core traversal is O(V + E); this implementation also sorts output IDs. Lazy Prim's heap work is O(V + E log(E + 1)), with additional deterministic root ordering. Graph construction/sorting and HTTP/SQL costs are counted separately.
 
-Recent memory defaults to **2,000 readings globally**, with a maximum response limit of **500**. Full paged history in Telemetry now queries a separate AVL index rebuilt from SQL, so recent-cache eviction does not remove historical readings. Queue and recent-history limits are configured separately in `src/SmartX.Api/appsettings.json`.
+**Routing meaning:** an MST minimises the sum of selected tree weights, not every sensor's individual route cost or hop count. Paths are reconstructed from selected forest edges. No shortest-path feature is claimed. Wireless weights use `(0.05 + 0.0005 × distance²) / deliveryProbability` simulated mJ per delivered packet, with explicitly assumed symmetric links, packet size and retries. These are pedagogical estimates, not physical RF/energy measurements.
 
-## Connection health and command rules
+## Verified results and performance
 
-Connection health uses **actual gateway contact**, including heartbeats, rather than the sensor's recorded measurement timestamp. Default thresholds are:
+Latest complete supplied Windows run: **10 November 2026**, evidence folder `artifacts/pillar4-checks/2026-11-10T09-22-34-942Z-27616/`.
 
-| Time since gateway contact | State |
-|---|---|
-| Less than 30 seconds | Connected |
-| 30 seconds to less than 90 seconds | Stale |
-| 90 seconds or more | Disconnected |
-| No known gateway contact | Unknown |
+| Check | Observed result |
+| --- | --- |
+| Release rebuild, warnings as errors; lint; production build | Passed; Release build reported zero warnings/errors. |
+| Backend / unit / rendered integration / browser tests | **242 / 28 / 22 / 13 passed**, no failures/skips. |
+| Full npm audit / transitive NuGet audit | **Zero known findings**, dated 10 November 2026. |
+| Live SQL operational modes | Normal, priority, lifecycle with the real 90-second threshold, and learning passed. |
+| Retained Node A history | **10,007 indexed readings**, five exact matches, AVL height **16**, **41 visits**. |
+| Configured mesh component | Twelve sensors plus gateway; minimum tree cost **1.002 simulated mJ**. Heap **18 enqueues / 18 dequeues / maximum frontier 7**; failure/recovery checks passed. |
 
-The monitor scans every 5 seconds; browser operational health refreshes periodically. Recorded time and gateway last-seen time are displayed separately. A device with no readings retains a missing value, not an invented zero. Invalid reading totals can overlap connection states. Seeded historical readings are not evidence of current gateway connectivity.
+Latest laptop algorithm measurements, transcribed from the same final-run output:
 
-Commands require a connected Boolean Actuator with a valid known state. Only acknowledged, durably committed manual commands enter the Undo Stack. Undo targets the latest eligible successful command and validates current device state and availability before reverting it. The eligible Stack is reconstructed from SQL command history after restart. This is a simulated ESP32 acknowledgement, not a physical hardware claim.
+| Readings | Height | Matches | Visits | Median AVL query µs | Mean linear count scan µs |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 10,000 | 14 | 121 | 157 | 4.300 | 91.287 |
+| 50,000 | 16 | 121 | 161 | 5.300 | 575.877 |
+| 100,000 | 17 | 121 | 167 | 6.400 | 984.507 |
 
-## Learned actions
-
-The recommendation engine groups distinct persisted searches/views and successful manual commands by telemetry context, target and action. It learns conditional frequencies, requiring at least **three matching observations** and **60% confidence**. Ranking uses confidence multiplied by `log(1 + support)`; only the highest-ranked action per device is returned. Failed commands and Undo do not train successful manual-action patterns.
-
-Suggested Actions shows evidence counts, confidence and contextual reasons. Command recommendations require operator approval. Inspection recommendations open the device. Unavailable targets and commands that would repeat the current actuator state are excluded. This is a frequency-based learning algorithm, not a trained neural model or a promise to predict future faults.
-
-## Attachments and diagnostic notes
-
-Incident labels and diagnostic notes persist against the incident. Per-sensor attachments support configuration files (`.json`, `.txt`, `.csv`, `.pdf`), deployment photos (`.png`, `.jpg`, `.jpeg`) and hardware logs (`.log`, `.txt`, `.csv`). Maximum file size is **5 MB**. Metadata is stored in SQL; file contents use protected local storage with generated names and controlled download/delete routes. File selections are not retained across module unmounts.
-
-## Assessed implementation
-
-| Concept | Implementation |
-|---|---|
-| Part 1 generics, operators, arrays/lists and recursion | `TelemetryPacket<T>`, `PowerReading`, raw batch processing and deployment hierarchy validation |
-| FIFO and priority queues | `src/SmartX.Application/Operations/TelemetryWorkQueue.cs` |
-| Command Stack and durable Undo | `src/SmartX.Infrastructure/Operations/CommandService.cs` |
-| MAC dictionaries and timestamp-sorted recent history | `src/SmartX.Application/Live/LiveTelemetryStore.cs` |
-| Unique active incidents and connection lifecycle | `src/SmartX.Application/Operations/IncidentTracker.cs` |
-| Learned recommendations | `src/SmartX.Application/Operations/SuggestionEngine.cs` |
-| Real-time operational UI | `src/SmartX.Client/src/features/commands/CommandStreamWorkspace.jsx` |
-| Full timestamped history | `src/SmartX.Application/History/TelemetryAvlTree.cs` / `HistoricalTelemetryIndex.cs` |
-| Graph, BFS, Prim/min-heap and routes | `src/SmartX.Domain/Mesh/WeightedMeshGraph.cs`, `src/SmartX.Application/Mesh/MeshAlgorithms.cs` |
-| Network dashboard and linked diagnostics | `src/SmartX.Client/src/features/network/NetworkWorkspace.jsx` |
+Raw [Windows CSV](docs/pillar4/Benchmarks_Windows.csv), [measurement method and provenance](docs/Verification_Summary.md), and [benchmark executable](tools/SmartX.HistoryBenchmarks/Program.cs). Sorted inserts deliberately exercise balancing. A tenfold history increase raises observed visits from 157 to 167 for the same 121 matches; height grows from 14 to 17. Visits can include repeated visits made by boundary/page traversals. Timings exclude SQL, HTTP, hydration and rendering. Query timing is a warm median; the linear comparison only counts matches and uses a mean, so this is illustrative algorithm scaling, not an application-wide speedup claim. JIT/GC/CPU conditions affect times.
 
 ## API entry points
 
-| Purpose | Route |
-|---|---|
-| Registration/directory | `/api/sensors` |
-| Deployment locations | `/api/deployment-nodes` |
-| Native telemetry | `/api/telemetry/float`, `/integer`, `/boolean` |
-| Atomic mixed batches | `/api/telemetry/bulk` |
-| Full sensor history | `/api/telemetry/sensors/{sensorId}` |
-| Mesh snapshot, BFS, Prim forest/edges/cost and optional atomic selected route | `/api/mesh`, optionally `?nodeId=...` or `?macAddress=...` |
-| Selected route by ID or MAC | `/api/mesh/route?nodeId=...` or `?macAddress=...` |
-| Development mesh failure simulation | `PUT /api/mesh/nodes/{id}/availability`, `PUT /api/mesh/links/{id}/availability`, `DELETE /api/mesh/simulation` |
-| Live MAC registry/history | `/api/live/devices`, `/api/live/devices/{macAddress}`, `/api/live/history` |
-| Operational snapshot | `/api/operations/dashboard` |
-| Commands and Undo | `/api/operations/commands`, `/api/operations/undo` |
-| Heartbeat | `/api/operations/heartbeat/{sensorId}` |
-| Operator behaviour | `/api/operations/interactions` |
+| Method / purpose | Route |
+| --- | --- |
+| Sensor registration/directory and deployment lookup | `POST/GET /api/sensors`; `GET /api/deployment-nodes` |
+| Native telemetry; atomic mixed batch | `POST /api/telemetry/float`, `/integer`, `/boolean`, `/bulk` |
+| Full AVL history | `GET /api/telemetry/sensors/{sensorId}?fromUtc=...&toUtc=...&isValid=...&page=1&pageSize=100` |
+| Mesh snapshot and optional selected route | `GET /api/mesh`, optionally `?nodeId=...` or `?macAddress=...`; optional configured `subnetId` |
+| Separate selected tree route | `GET /api/mesh/route?nodeId=...` or `?macAddress=...` |
+| Routing failure/reset | `PUT /api/mesh/nodes/{id}/availability`, `PUT /api/mesh/links/{id}/availability`, `DELETE /api/mesh/simulation` |
+| Live registry/recent history | `GET /api/live/devices`, `/api/live/devices/{macAddress}`, `/api/live/history` |
+| Operational snapshot; commands; Undo | `GET /api/operations/dashboard`; `POST /api/operations/commands`, `/api/operations/undo` |
+| Gateway heartbeat; behaviour evidence | `POST /api/operations/heartbeat/{sensorId}`, `/api/operations/interactions` |
 
-Use the OpenAPI document for full contracts. Typed telemetry must contain an explicit `value`; missing/null values are rejected, while native `0` and `false` are accepted.
+Use the Development OpenAPI JSON for complete payloads, responses and remaining attachment/diagnostic routes. Ingestion requires an explicit typed `value`: native `0`/`false` are valid, missing/null are rejected. History bounds are inclusive; omit either for an open range, permit equal endpoints, reject reversed ranges/invalid paging. SAST inputs are interpreted at UTC+02:00 and sent as UTC instants, independently of the browser's timezone. Use ISO timestamps with `Z` or an explicit offset; URL-encode a `+` offset.
 
-## Verification and submission
+## Troubleshooting and limits
 
-Current Pillar 3 checks on **9 November 2026** passed: Release rebuild with warnings as errors, **242 backend tests, 28 client unit tests, 22 rendered integration tests, 13 Chromium browser tests**, lint and production build. An additional actual API + React smoke check with EF InMemory passed graph/route/failure/history/watcher workflows. Pillars 1-3 now have user-reported local sign-off, including all four suites and the SQL-backed dashboard check. See [Pillar 3 verification](docs/pillar3/Verification.md). Pillar 4 subsequently resolves the six npm findings: full npm and transitive NuGet audits report zero known findings on 10 November 2026. Its full automated command passes the same 242/28/22/13 suites plus lint/build and the 10k/50k/100k benchmark; see `docs/pillar4/Verification.md`. Repeat locally for final Pillar 4 sign-off. The earlier Part 2 audit result below is historical.
+| Symptom / boundary | Explanation or action |
+| --- | --- |
+| Duplicate types / multiple top-level programs on build | API contents may have been copied into `Controllers`. Restore the layout using the original source; retain a backup of misplaced files outside the project. The final-check command detects the known nested entries. |
+| LocalDB startup failure | Check the SQL instance and environment connection string. Development startup runs migrations; a fresh deployment table is needed for automatic baseline seeding. |
+| Client cannot reach API / CORS failure | Confirm API 5075, `.env`, exact client origin `http://localhost:5173`, and restart Vite after config changes. Navigation/retry remain usable during API errors. |
+| HTTP launch reports no HTTPS redirect port | The HTTP development profile does not supply an HTTPS redirect destination. The recorded local HTTP scenario uses 5075; an optional HTTPS profile is available with separately prepared certificate/client/CORS configuration. |
+| Nodes become unavailable after a pause | Health uses real gateway contact: Connected <30s, Stale 30-<90s, Disconnected ≥90s (scan every 5s). Mesh permits registered Connected/Stale nodes with known contact. Commands require Connected Boolean actuators with a valid state. Old recorded times are not heartbeats. |
+| Clearing failures does not revive a device | Overrides only remove routing availability. A genuinely expired/unregistered device still needs a valid registration/contact; command/Undo state is independent. Overrides reset on process restart. |
+| Extra isolated components / Degraded state | Scenario devices without declared links remain unlinked even while online. The forest spans available vertices only; failed gateway/disconnected targets return empty paths and null hop/cost, not invented routes. |
+| No learned suggestion | Support must reach 3 and confidence 60% for the active context; unavailable targets/already-satisfied actions are excluded. Suggestions use conditional operator-history frequencies, not a neural or threshold-only predictor. Commands require approval. |
+| Recent history shows fewer records | Recent memory is bounded to 2,000 globally, responses up to 500. Full paged Telemetry history uses the separate AVL hydrated from all persisted readings. |
+| Attachment upload fails | Maximum 5 MB; configuration `.json/.txt/.csv/.pdf`, photo `.png/.jpg/.jpeg`, hardware log `.log/.txt/.csv`. Persisted metadata/content survive navigation; an unsubmitted browser file selection does not. |
+| Incident notes after server restart | Labels/notes are process-local active-incident state. They can survive module navigation while the API runs, but are not rehydrated after API restart. Attachment metadata/content and command/interaction history are separate persisted records. |
+| Node `DEP0190` during final checks | Observed non-blocking warning from the Windows npm launcher in `verify-final.mjs`. The supplied run completed; this documentation patch does not alter that launcher. Track it as maintenance rather than a failed application test. |
+| Deployment beyond this assignment | One API process owns caches/queues; one subnet/gateway is configured. Direct SQL writers, deletions or multiple replicas need further invalidation/coordination. Full history has O(N) memory cost. Async polling is used, not WebSockets. |
 
-
-The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; these were recorded during the earlier Part 2 verification. These are earlier Part 2 results; current pillar results and limitations are recorded in `docs/pillar1`, `docs/pillar2` and `docs/pillar3`.
-
-Use the current pillar setup guides to collect reproducible demonstration evidence. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. The mesh API and topology dashboard are implemented; final regression, report and submission work remains. Hardware and Docker are optional.
-
-Before submission, review `git diff --check`, `git status --short` and the staged diff. Keep local `.env`, credentials, SQL database files, uploaded files, `bin`, `obj`, `node_modules` and `dist` out of source commits. Push the final reviewed changes, verify the remote commit, and record its hash alongside test evidence and the demo URL. The current test results are not yet tied to a supplied final commit hash.
-
-## Practical limits and troubleshooting
-
-- One API process owns the live cache and queues. Direct SQL edits or another API writer require cache reinitialization; distributed gateway coordination is outside this assignment.
-- The React UI uses asynchronous polling and requests rather than WebSockets. Browser reload resets workspace choices; server records persist.
-- Simulators supply telemetry through HTTP; the UI does not include a manual telemetry-entry form.
-- If an extracted patch appears ignored by incremental builds, force the Release rebuild shown above before using `--no-build`.
-- If SQL startup fails, check LocalDB availability and the configured connection string. Development startup applies migrations automatically; an optional EF CLI workflow requires `dotnet-ef` version 10.
-- If a command is disabled, confirm Actuator category, **On or off** value type, a valid Boolean reading, and current gateway heartbeats. A recorded reading alone does not keep a device connected indefinitely.
-- If the API is unavailable, navigation remains usable; restart it and use Retry. Confirm the API URL, client `.env` and exact CORS origin.
-- The original `Send-DemoTelemetry.ps1` predates gateway-contact health. Old recorded timestamps alone do not create Stale status; use the lifecycle scenario or stop heartbeats to demonstrate timeouts.
-
-Network troubleshooting: retain the mesh watcher during demonstrations; expired contacts correctly make nodes unavailable. Extra registered devices without declared links remain isolated and can make the overall network Degraded. Clearing simulated failures only clears routing overrides. To select a route, rebuild both API and client and use the same configured subnet. The diagram is schematic and its history panel displays the current page, not the entire database at once.
+The [evidence map](docs/Evidence_Map.md) separates implemented features from outstanding report, feedback and release items. The final PDF and demo video URL are still pending. Record the actual final GitHub commit and video URL when available; no contributor history, commit hash, recording or upload is inferred from test results.
