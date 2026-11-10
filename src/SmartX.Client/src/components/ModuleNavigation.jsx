@@ -6,6 +6,7 @@ export function ModuleNavigation() {
     ["startup", "Home"],
     ["sensors", "Telemetry"],
     ["commands", "Command Stream"],
+    ["network", "Network"],
   ];
 
   return (

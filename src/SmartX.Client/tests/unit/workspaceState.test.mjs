@@ -63,10 +63,23 @@ test('Cancelled draft reset leaves directory and command choices intact', () => 
   assert.equal(state.commandStream.search, '');
 });
 
-test('Final-PoE and unknown navigation cannot activate an unsupported module', () => {
+test('Network navigation is enabled and unknown navigation is rejected', () => {
   const state = createWorkspaceState();
-  assert.strictEqual(act(state, 'navigate', { view: 'topology' }), state);
+  assert.equal(act(state, 'navigate', { view: 'network' }).activeView, 'network');
   assert.strictEqual(act(state, 'navigate', { view: 'unknown' }), state);
+});
+
+test('Network choices and pending feedback survive navigation; linked selection preserves history', () => {
+  let state = act(createWorkspaceState(), 'network/patch', { patch: { search: 'ph', nodeFilter: 'reachable', linksView: 'tree', mutationPending: true } });
+  state = act(state, 'history/patch', { sensorId: 'ph', patch: { fromLocal: '2026-11-08T14:00', page: 2 } });
+  const history = state.historyBySensor;
+  state = act(state, 'network/open-node', { nodeId: 'ph' });
+  assert.equal(state.activeView, 'network');
+  assert.equal(state.network.selectedNodeId, 'ph');
+  for (const view of ['commands', 'startup', 'sensors', 'network']) state = act(state, 'navigate', { view });
+  assert.equal(state.network.linksView, 'tree');
+  assert.equal(state.network.mutationPending, true);
+  assert.strictEqual(state.historyBySensor, history);
 });
 
 test('A fresh browser application gets its own state rather than another session draft', () => {

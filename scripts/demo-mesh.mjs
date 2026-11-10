@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 // Exercises actual HTTP controllers and algorithms. Use a test database.
-// node scripts/demo-mesh.mjs http://localhost:5075 [demo|verify|reset]
+// node scripts/demo-mesh.mjs http://localhost:5075 [demo|verify|reset|watch]
 const base = (process.argv[2] ?? 'http://localhost:5075').replace(/\/$/, '');
 const mode = process.argv[3] ?? 'demo';
-assert.ok(['demo', 'verify', 'reset'].includes(mode), 'Mode must be demo, verify or reset.');
+assert.ok(['demo', 'verify', 'reset', 'watch'].includes(mode), 'Mode must be demo, verify, reset or watch.');
 const manifestPath = resolve('artifacts/pillar2-demo.json');
 async function request(path, method = 'GET', body, expected = 200) {
   const response = await fetch(`${base}${path}`, { method, signal: AbortSignal.timeout(120000),
@@ -112,7 +113,15 @@ async function refreshContacts(ids) {
   for (const id of ids) await request(`/api/operations/heartbeat/${id}`, 'POST', {});
 }
 
-if (mode === 'reset') {
+if (mode === 'watch') {
+  const data = JSON.parse(await readFile(manifestPath, 'utf8'));
+  console.log('Keeping simulated gateway contacts current through the API every 10 seconds. Ctrl+C stops the watcher.');
+  while (true) {
+    await refreshContacts(data.sensorIds);
+    console.log(`Heartbeat contacts refreshed at ${new Date().toISOString()}. Routing failure overrides remain unchanged.`);
+    await delay(10000);
+  }
+} else if (mode === 'reset') {
   const snapshot = await request('/api/mesh/simulation', 'DELETE');
   inspect(snapshot);
   console.log('PASS: simulated failures cleared. Actual heartbeat health is still authoritative.');

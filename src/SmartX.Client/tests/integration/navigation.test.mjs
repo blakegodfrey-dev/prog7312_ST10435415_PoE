@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
 import { act, createElement, StrictMode } from 'react';
+import { meshFixture } from '../fixtures/meshFixture.mjs';
 
 let dom;
 let vite;
@@ -14,6 +15,7 @@ let root;
 let requests;
 let registered;
 let override;
+let meshFailures;
 const originalFetch = globalThis.fetch;
 const apiBase = 'http://127.0.0.1:5075';
 const location = { id: 'node-reservoir', name: 'Reservoir 1', code: 'RES-1', nodeType: 'Node' };
@@ -57,12 +59,24 @@ beforeEach(async () => {
   requests = [];
   registered = [];
   override = null;
+  meshFailures = { nodes: [], links: [] };
   globalThis.fetch = async (address, options = {}) => {
     const url = new URL(address);
     requests.push({ url, ...options });
     const special = await override?.(url, options);
     if (special) return special;
     const path = url.pathname;
+    if (path.startsWith('/api/mesh')) {
+      if (options.method === 'DELETE') meshFailures = { nodes: [], links: [] };
+      const mutation = /^\/api\/mesh\/(nodes|links)\/([^/]+)\/availability$/.exec(path);
+      if (mutation) {
+        const list = meshFailures[mutation[1]];
+        const available = JSON.parse(options.body).isAvailable;
+        meshFailures[mutation[1]] = available ? list.filter(id => id !== mutation[2]) : [...new Set([...list, mutation[2]])];
+      }
+      const selected = url.searchParams.get('nodeId') ?? (url.searchParams.get('macAddress')?.toLowerCase() === sensor.macAddress.toLowerCase() ? sensor.id : null);
+      return response(meshFixture({ selectedId: selected, failedNodes: meshFailures.nodes, failedLinks: meshFailures.links }));
+    }
     if (path === '/api/operations/dashboard') return response(operationSnapshot());
     if (path === '/api/operations/interactions') return response({});
     if (path === '/api/health') {
@@ -148,8 +162,12 @@ async function openPh() {
   await waitUntil(() => document.querySelector('.pagination'));
 }
 
-test('App exposes enabled Part 1 and Part 2 pillars and keeps final topology disabled', async () => {
-  assert.equal(button('Coming in Final PoE').disabled, true);
+test('Home and navigation expose all three working modules', async () => {
+  assert.equal(button('Open Network Topology').disabled, false);
+  await click('Open Network Topology');
+  await waitUntil(() => document.querySelector('.mesh-graph'));
+  assert.match(document.querySelector('h1').textContent, /Network Topology/);
+  await navigate('Home');
   await click('Open Command Stream');
   assert.match(document.querySelector('h1').textContent, /Real-Time Command Stream/);
   assert.equal(document.querySelectorAll('.command-shell-panel').length, 7);
@@ -157,6 +175,115 @@ test('App exposes enabled Part 1 and Part 2 pillars and keeps final topology dis
   await navigate('Home');
   await click('Open Telemetry');
   assert.equal(document.querySelector('h1').textContent, 'Sensor directory');
+});
+
+test('Network selection highlights only real tree edges and shares history with Telemetry', async () => {
+  await navigate('Network');
+  await waitUntil(() => document.querySelector('[data-node-id="ph"]'));
+  await act(async () => document.querySelector('[data-node-id="ph"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+  await waitUntil(() => document.querySelector('.network-route'));
+  assert.equal(document.querySelectorAll('.mesh-edge.in-route').length, 1);
+  assert.match(document.querySelector('.network-route').textContent, /Hydroponic gateway/);
+  await waitUntil(() => document.querySelector('.telemetry-table'));
+  await input('From (SAST)', '2026-10-07T10:00');
+  await input('To (SAST)', '2026-10-07T12:00');
+  await waitUntil(() => document.querySelector('.telemetry-table'));
+  await click('Open in Telemetry');
+  await waitUntil(() => document.querySelector('.telemetry-table'));
+  assert.equal(field('From (SAST)').value, '2026-10-07T10:00');
+  await click('View in Network');
+  await waitUntil(() => document.querySelector('.network-route'));
+  assert.equal(document.querySelector('[data-node-id="ph"]').getAttribute('aria-pressed'), 'true');
+  await input('Search nodes', 'a4:cf:12:8b:40:01');
+  await click('Find exact MAC / ID');
+  await waitUntil(() => requests.some(r => r.url.pathname === '/api/mesh' && r.url.searchParams.get('macAddress') === 'a4:cf:12:8b:40:01'));
+  await navigate('Home'); await navigate('Network');
+  await waitUntil(() => document.querySelector('.network-route'));
+  assert.equal(field('Search nodes').value, 'a4:cf:12:8b:40:01');
+});
+
+test('Network node/link/gateway failures show real no-route states and recovery', async () => {
+  await navigate('Network');
+  await waitUntil(() => document.querySelector('[data-node-id="power"]'));
+  await act(async () => document.querySelector('[data-node-id="power"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await waitUntil(() => document.querySelectorAll('.mesh-edge.in-route').length === 2);
+  await act(async () => document.querySelector('[data-link-id="ab"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+  await click('Fail selected link');
+  await waitUntil(() => document.querySelector('[data-link-id="gb"]')?.classList.contains('in-route'));
+  assert.equal(document.querySelector('[data-link-id="ab"]').classList.contains('in-route'), false);
+  await click('Clear simulated failures');
+  await waitUntil(() => document.querySelectorAll('.mesh-edge.in-route').length === 2);
+  await act(async () => document.querySelector('[data-node-id="gw"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await waitUntil(() => button('Fail selected node').disabled === false);
+  await click('Fail selected node');
+  await waitUntil(() => document.querySelector('.network-route')?.textContent.includes('Gateway unavailable'));
+  assert.equal(document.querySelectorAll('.mesh-edge.in-route').length, 0);
+  await click('Clear simulated failures');
+  await waitUntil(() => document.querySelector('.network-route')?.textContent.includes('0 hops'));
+  await act(async () => document.querySelector('[data-node-id="isolated"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await waitUntil(() => document.querySelector('.network-route')?.textContent.includes('No available path'));
+  assert.equal(document.querySelectorAll('.mesh-edge.in-route').length, 0);
+});
+
+test('Network mutations retain pending feedback across navigation without duplicate requests', async () => {
+  let release;
+  override = (url, options) => url.pathname.endsWith('/availability') && options.method === 'PUT'
+    ? new Promise(resolve => { release = result => { meshFailures.nodes = ['ph']; resolve(result); }; }) : null;
+  await navigate('Network');
+  await waitUntil(() => document.querySelector('[data-node-id="ph"]'));
+  await act(async () => document.querySelector('[data-node-id="ph"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await waitUntil(() => !button('Fail selected node').disabled);
+  await click('Fail selected node');
+  await waitUntil(() => release);
+  assert.equal(button('Clear simulated failures').disabled, true);
+  await navigate('Telemetry'); await navigate('Network');
+  await waitUntil(() => document.querySelector('.mesh-graph'));
+  assert.equal(button('Clear simulated failures').disabled, true);
+  await act(async () => { release(response(meshFixture({ failedNodes: ['ph'] }))); await delay(10); });
+  await waitUntil(() => document.querySelector('.network-feedback.success'));
+  await waitUntil(() => document.querySelector('[data-node-id="ph"]')?.classList.contains('unavailable'));
+  assert.equal(requests.filter(r => r.method === 'PUT' && r.url.pathname.endsWith('/availability')).length, 1);
+});
+
+test('Obsolete network responses are ignored and a failed refresh disables stale route controls', async () => {
+  override = async url => {
+    if (url.pathname === '/api/mesh' && url.searchParams.get('nodeId') === 'power') {
+      await delay(120); return response(meshFixture({ selectedId: 'power' }));
+    }
+  };
+  await navigate('Network');
+  await waitUntil(() => document.querySelector('[data-node-id="power"]'));
+  await act(async () => document.querySelector('[data-node-id="power"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await act(async () => document.querySelector('[data-node-id="ph"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await waitUntil(() => document.querySelector('.network-route')?.textContent.includes('1 hop'));
+  await act(async () => delay(150));
+  assert.equal(document.querySelectorAll('.mesh-edge.in-route').length, 1);
+  override = url => url.pathname === '/api/mesh' ? response({ detail: 'Gateway unavailable.' }, 503) : null;
+  await click('Refresh network');
+  await waitUntil(() => document.querySelector('.network-workspace .error-panel'));
+  assert.equal(button('Fail selected node').disabled, true);
+  assert.equal(document.querySelectorAll('.mesh-edge.in-route').length, 0);
+  override = null; await click('Retry network');
+  await waitUntil(() => document.querySelector('.network-route'));
+  assert.equal(document.querySelector('.network-workspace .error-panel'), null);
+  await navigate('Command Stream');
+  const count = requests.filter(r => r.url.pathname === '/api/mesh').length;
+  await act(async () => delay(2100));
+  assert.equal(requests.filter(r => r.url.pathname === '/api/mesh').length, count);
+});
+
+test('History chart places two equal timestamps at the same actual time coordinate', async () => {
+  override = url => url.pathname.startsWith('/api/telemetry/sensors/') ? response({ unit: 'pH', page: 1, pageSize: 25, totalCount: 4,
+    readings: [
+      { id: 'end', valueKind: 'Float', floatValue: 6, isValid: true, recordedAtUtc: '2026-11-08T14:00:00Z' },
+      { id: 'duplicate2', valueKind: 'Float', floatValue: 5, isValid: false, recordedAtUtc: '2026-11-08T13:00:00Z' },
+      { id: 'duplicate1', valueKind: 'Float', floatValue: 6, isValid: true, recordedAtUtc: '2026-11-08T13:00:00Z' },
+      { id: 'start', valueKind: 'Float', floatValue: 6, isValid: true, recordedAtUtc: '2026-11-08T12:00:00Z' },
+    ] }) : null;
+  await openPh();
+  const valid = document.querySelector('circle[data-recorded-at="2026-11-08T13:00:00Z"]');
+  const invalid = document.querySelector('.chart-anomaly[data-recorded-at="2026-11-08T13:00:00Z"]');
+  assert.equal(Number(valid.getAttribute('cx')), Number(invalid.getAttribute('data-time-x')));
 });
 
 test('Rendered filters and selected anomaly/history survive full module unmounts', async () => {

@@ -150,6 +150,7 @@ export function SensorRegistration({
             <label>
               <span>Category</span>
               <select
+                aria-label="Category"
                 name="category"
                 value={form.category}
                 onChange={updateField}
@@ -165,6 +166,7 @@ export function SensorRegistration({
             <label>
               <span>Telemetry value type</span>
               <select
+                aria-label="Telemetry value type"
                 name="valueKind"
                 value={form.valueKind}
                 onChange={updateField}
@@ -225,6 +227,7 @@ export function SensorRegistration({
             <label className="full-field">
               <span>Deployment location</span>
               <select
+                aria-label="Deployment location"
                 name="deploymentNodeId"
                 value={form.deploymentNodeId}
                 onChange={updateField}

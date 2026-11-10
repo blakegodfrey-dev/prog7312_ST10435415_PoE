@@ -676,6 +676,9 @@ button:focus-visible {
   border-radius: 12px;
 }
 
+.chart-time-gap { fill: #9aa8b4; opacity: .16; }
+.chart-gap-explanation { color: #566873; font-size: .75rem; padding-top: 10px; line-height: 1.5; }
+
 .telemetry-table {
   width: 100%;
   border-collapse: collapse;

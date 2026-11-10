@@ -5,6 +5,7 @@
 import { SensorAttachmentsPanel } from "./SensorAttachmentsPanel";
 import { TelemetryHistoryPanel } from "./TelemetryHistoryPanel";
 import { useSensorDetail } from "./useSensorDetail";
+import { useWorkspaceState } from "../../state/useWorkspaceState.js";
 
 function formatExpectedRange(sensor) {
   const minimum = sensor.expectedMinimum;
@@ -30,7 +31,10 @@ export function SensorDetail({
   sensorId,
   successMessage,
   onBack,
+  backLabel = "Back to sensors",
+  showNetworkLink = true,
 }) {
+  const { dispatch } = useWorkspaceState();
   const {
     sensor,
     isLoading,
@@ -59,7 +63,7 @@ export function SensorDetail({
         {error.traceId && <small>Trace ID: {error.traceId}</small>}
         <div className="state-actions">
           <button type="button" onClick={onBack}>
-            Back to sensors
+            {backLabel}
           </button>
           {error.status !== 404 && (
             <button type="button" onClick={refresh}>
@@ -75,12 +79,15 @@ export function SensorDetail({
     <section className="sensor-detail" aria-labelledby="sensor-detail-title">
       <div className="detail-toolbar">
         <button type="button" className="text-button" onClick={onBack}>
-          ← Back to sensors
+          ← {backLabel}
         </button>
         <span className="value-kind">
           {getTelemetryValueKindLabel(sensor.valueKind)}
         </span>
       </div>
+
+      {showNetworkLink && <button type="button" className="secondary-button"
+        onClick={() => dispatch({ type: "network/open-node", nodeId: sensor.id })}>View in Network</button>}
 
       {successMessage && (
         <div className="success-banner" role="status">

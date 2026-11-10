@@ -9,6 +9,7 @@ public sealed record MeshSnapshot(DateTimeOffset GeneratedAtUtc, Guid GatewayId,
     long SimulationRevision, bool SimulationEnabled, IReadOnlyList<MeshNodeStatus> Nodes,
     IReadOnlyList<MeshLinkStatus> Links, MeshTraversal Reachability, MeshForest Forest)
 {
+    public MeshRoute? SelectedRoute { get; init; }
     public string NetworkState => !Nodes.Single(n => n.IsGateway).IsAvailable ? "GatewayUnavailable"
         : Reachability.UnreachableNodeIds.Count > 0 ? "Degraded" : "Connected";
     public string CostModel => "Simulated expected mJ/delivered packet: (0.05 + 0.0005 * distanceMetres^2) / deliveryProbability. Not measured radio energy.";

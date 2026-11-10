@@ -15,6 +15,12 @@ export function createWorkspaceState() {
       registrationForm: { ...INITIAL_SENSOR_FORM },
     },
     historyBySensor: {},
+    network: {
+      search: "", nodeFilter: "all", selectedNodeId: null, selectedLinkId: null,
+      routeLookupMac: null, linksView: "all", showCosts: false,
+      mutationPending: false, mutationFeedback: null, lookupError: null,
+      refreshVersion: 0,
+    },
     commandStream: {
       search: "",
       category: "",
@@ -42,7 +48,7 @@ export function getSensorHistoryState(state, sensorId) {
 export function workspaceReducer(state, action) {
   switch (action.type) {
     case "navigate":
-      return ["startup", "sensors", "commands"].includes(action.view)
+      return ["startup", "sensors", "commands", "network"].includes(action.view)
         ? { ...state, activeView: action.view }
         : state;
     case "telemetry/patch":
@@ -87,6 +93,17 @@ export function workspaceReducer(state, action) {
         ...state,
         commandStream: { ...state.commandStream, ...action.patch },
       };
+    case "network/patch":
+      return { ...state, network: { ...state.network, ...action.patch } };
+    case "network/select":
+      return { ...state, network: { ...state.network, selectedNodeId: action.nodeId ?? null,
+        selectedLinkId: null, routeLookupMac: action.macAddress ?? null, lookupError: null } };
+    case "network/mutation-finished":
+      return { ...state, network: { ...state.network, mutationPending: false,
+        refreshVersion: state.network.refreshVersion + 1 } };
+    case "network/open-node":
+      return { ...state, activeView: "network", network: { ...state.network,
+        selectedNodeId: action.nodeId, selectedLinkId: null, routeLookupMac: null, lookupError: null } };
     default:
       return state;
   }

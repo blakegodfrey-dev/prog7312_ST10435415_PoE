@@ -1,8 +1,8 @@
 import {
   formatTelemetryTimestamp,
   formatTelemetryValue,
-  getTelemetryValue,
 } from "./telemetryDisplay";
+import { prepareTelemetryChart, telemetryTimeX } from "./telemetryChartModel.js";
 
 
 const WIDTH = 760;
@@ -47,20 +47,7 @@ export function TelemetryChart({
     onSelectReading,
     timeZone,
   }) {
-  const points = readings
-    .map((reading) => ({
-      ...reading,
-      chartValue: getTelemetryValue(reading),
-    }))
-    .filter((reading) => reading.chartValue != null)
-    .map((reading) => ({
-      ...reading,
-      chartValue:
-        typeof reading.chartValue === "boolean"
-          ? Number(reading.chartValue)
-          : reading.chartValue,
-    }))
-    .reverse();
+  const { points, segments, gaps } = prepareTelemetryChart(readings);
 
   if (points.length === 0) {
     return null;
@@ -113,12 +100,8 @@ const maximumValue =
   const plotWidth = WIDTH - PADDING.left - PADDING.right;
   const plotHeight = HEIGHT - PADDING.top - PADDING.bottom;
 
-  function getX(index) {
-    if (points.length === 1) {
-      return PADDING.left + plotWidth / 2;
-    }
-
-    return PADDING.left + (index / (points.length - 1)) * plotWidth;
+  function getX(point) {
+    return telemetryTimeX(point.time, points[0].time, points[points.length - 1].time, PADDING.left, plotWidth);
   }
 
   function getY(value) {
@@ -127,10 +110,6 @@ const maximumValue =
 
     return PADDING.top + plotHeight - ratio * plotHeight;
   }
-
-  const linePoints = points
-    .map((point, index) => `${getX(index)},${getY(point.chartValue)}`)
-    .join(" ");
 
   const middleValue = (yMinimum + yMaximum) / 2;
   const firstPoint = points[0];
@@ -159,7 +138,7 @@ function handleInvalidPointKeyDown(event, point) {
   return (
     <figure className="telemetry-chart">
       <figcaption>
-        <strong>Recent telemetry trend</strong>
+        <strong>Telemetry over time</strong>
         <span>
           {points.length} plotted{" "}
           {points.length === 1 ? "reading" : "readings"}
@@ -169,8 +148,8 @@ function handleInvalidPointKeyDown(event, point) {
 
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        role="img"
-        aria-label={`Recent telemetry trend containing ${points.length} readings.`}
+        role="group"
+        aria-label={`Telemetry over time containing ${points.length} readings. Horizontal positions represent recorded timestamps.`}
       > {hasExpectedRange && (
   <>
     <rect
@@ -251,15 +230,21 @@ function handleInvalidPointKeyDown(event, point) {
           y2={HEIGHT - PADDING.bottom}
         />
 
-        {points.length > 1 && (
+        {gaps.map(gap => <rect key={`${gap.from}-${gap.to}`} className="chart-time-gap"
+          x={telemetryTimeX(gap.from, firstPoint.time, lastPoint.time, PADDING.left, plotWidth)}
+          y={PADDING.top} width={telemetryTimeX(gap.to, firstPoint.time, lastPoint.time, PADDING.left, plotWidth) - telemetryTimeX(gap.from, firstPoint.time, lastPoint.time, PADDING.left, plotWidth)} height={plotHeight}>
+          <title>Long interval with no readings returned. This is inferred from the current page, not a count of lost packets.</title>
+        </rect>)}
+        {segments.filter(segment => segment.length > 1).map(segment => (
           <polyline
+            key={segment[0].id}
             className="chart-line"
-            points={linePoints}
+            points={segment.map(point => `${getX(point)},${getY(point.chartValue)}`).join(" ")}
           />
-        )}
+        ))}
 
-        {points.map((point, index) => {
-          const x = getX(index);
+        {points.map((point) => {
+          const x = getX(point);
           const y = getY(point.chartValue);
           const tooltip = `${formatTelemetryTimestamp(
             point.recordedAtUtc, timeZone,
@@ -275,6 +260,7 @@ function handleInvalidPointKeyDown(event, point) {
                 cx={x}
                 cy={y}
                 r="4"
+                data-recorded-at={point.recordedAtUtc}
               >
                 <title>{tooltip}</title>
               </circle>
@@ -290,6 +276,8 @@ function handleInvalidPointKeyDown(event, point) {
               }
               key={point.id}
               role="button"
+              data-recorded-at={point.recordedAtUtc}
+              data-time-x={x}
               tabIndex="0"
               aria-label={`Invalid reading. ${tooltip}. Select for details.`}
               onClick={() => selectInvalidPoint(point)}
@@ -331,6 +319,7 @@ function handleInvalidPointKeyDown(event, point) {
           {formatShortTime(lastPoint.recordedAtUtc, timeZone)}
         </text>
       </svg>
+      {gaps.length > 0 && <p className="chart-gap-explanation">Shaded intervals contain no returned readings and exceed three times this page’s median interval. They do not prove packet loss.</p>}
       {selectedPoint && (
   <aside
     className="anomaly-details"

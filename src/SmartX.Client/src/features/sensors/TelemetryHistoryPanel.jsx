@@ -124,6 +124,7 @@ export function TelemetryHistoryPanel({
         <label>
           <span>Reading status</span>
           <select
+            aria-label="Reading status"
             value={validityFilter}
             onChange={changeValidityFilter}
           >

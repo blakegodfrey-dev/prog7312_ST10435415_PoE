@@ -10,6 +10,26 @@ namespace SmartX.Tests.Mesh;
 
 public sealed class MeshHttpTests
 {
+    [Fact]
+    public async Task DashboardSelectionAndRouteUseOneAtomicMeshAnalysis()
+    {
+        await using var s = new Scenario(); await s.StartAsync(); await s.RegisterRelayAsync();
+        var snapshot = (await s.Client.GetFromJsonAsync<MeshSnapshot>($"/api/mesh?nodeId={s.RelayId}"))!;
+        Assert.Equal(s.RelayId, snapshot.SelectedRoute!.NodeId);
+        Assert.Equal(new[] { s.RelayId, s.Host.MoistureId, s.Host.PumpId, s.GatewayId }, snapshot.SelectedRoute.NodeIds);
+        Assert.All(snapshot.SelectedRoute.EdgeIds, id => Assert.Contains(snapshot.Forest.Edges, e => e.Id == id));
+        var byMac = (await s.Client.GetFromJsonAsync<MeshSnapshot>("/api/mesh?macAddress=02%3a73%3a12%3a00%3a00%3a50"))!;
+        Assert.Equal(snapshot.SelectedRoute.NodeIds, byMac.SelectedRoute!.NodeIds);
+        await s.Node(s.Host.MoistureId, false);
+        var after = (await s.Client.GetFromJsonAsync<MeshSnapshot>($"/api/mesh?nodeId={s.RelayId}"))!;
+        Assert.DoesNotContain(s.Host.MoistureId, after.SelectedRoute!.NodeIds);
+        Assert.All(after.SelectedRoute.EdgeIds, id => Assert.Contains(after.Forest.Edges, e => e.Id == id));
+        Assert.Null((await s.Mesh()).SelectedRoute);
+        Assert.Equal(HttpStatusCode.BadRequest, (await s.Client.GetAsync($"/api/mesh?nodeId={s.RelayId}&macAddress=02:73:12:00:00:50")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await s.Client.GetAsync("/api/mesh?macAddress=bad")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await s.Client.GetAsync($"/api/mesh?nodeId={Guid.NewGuid()}")).StatusCode);
+    }
+
     private sealed class Scenario : IAsyncDisposable
     {
         public OperationsHarness Host { get; } = new();

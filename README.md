@@ -1,4 +1,4 @@
-# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillars 1/2
+# Smart-X IoT Mesh Ecosystem — Parts 1/2 and Part 3 Pillars 1-3
 
 Student number: **ST10435415**
 Module: **PROG7312 / AAPD7112 — Programming 3B / Advanced Application Development**
@@ -11,13 +11,15 @@ Smart-X simulates a South African hydroponic facility whose environmental sensor
 |---|---|
 | Sensor Data Ingestion and Telemetry | Implemented and enabled |
 | Real-Time Command Stream and History | Implemented and enabled |
-| Network Topology and Mesh Routing | Graph/routing API implemented in Pillar 2; dashboard pending Pillar 3 |
+| Network Topology and Mesh Routing | Implemented and enabled: topology, health, routes and linked history |
 
 Part 1 registration, typed ingestion, deployment validation, attachments and anomaly investigation are retained. Part 2 adds FIFO and priority processing, a live device registry, ordered recent history, unique incidents and recovery, acknowledged commands, Stack-backed Undo, and learned suggestions. Module navigation preserves filters, selections and registration drafts within the current browser application session.
 
 Part 3 **Pillar 1** adds a full historical AVL index, inclusive sensor/time queries, filtered pagination, restart hydration and SAST date controls. Begin with [Pillar 1 setup and local checks](START_HERE_PILLAR_1.md). See [implementation](docs/pillar1/Implementation.md), [verification](docs/pillar1/Verification.md) and [changed files](docs/pillar1/Patch_Files.md). Pillar 1 was subsequently verified locally and signed off by the user.
 
-Part 3 **Pillar 2** now adds the weighted adjacency graph, BFS gateway reachability, Prim minimum spanning forest with a real min-heap frontier, MAC/ID routes and failure/recovery API. Start with [Pillar 2 setup and demo](START_HERE_PILLAR_2.md), then [implementation](docs/pillar2/Implementation.md), [verification](docs/pillar2/Verification.md) and [changed files](docs/pillar2/Patch_Files.md). The existing twelve simulated facility sensors retain their IDs/MACs. The dashboard is intentionally left for Pillar 3.
+Part 3 **Pillar 2** now adds the weighted adjacency graph, BFS gateway reachability, Prim minimum spanning forest with a real min-heap frontier, MAC/ID routes and failure/recovery API. Start with [Pillar 2 setup and demo](START_HERE_PILLAR_2.md), then [implementation](docs/pillar2/Implementation.md), [verification](docs/pillar2/Verification.md) and [changed files](docs/pillar2/Patch_Files.md). The existing twelve simulated facility sensors retain their IDs/MACs. The user has signed off the SQL-backed demo/verify and local regression checks.
+
+Part 3 **Pillar 3** enables the Network dashboard with actual wireless/Prim edges, gateway health, MAC/ID route selection, failure/recovery controls and shared sensor diagnostics/history. Historical charts now use recorded time, preserving equal timestamps at the same X position. Start with [Pillar 3 setup and local checks](START_HERE_PILLAR_3.md); see [implementation](docs/pillar3/Implementation.md), [verification](docs/pillar3/Verification.md) and [changed files](docs/pillar3/Patch_Files.md). Local SQL-backed dashboard sign-off remains pending.
 
 ## Setup
 
@@ -90,7 +92,7 @@ npx.cmd playwright install chromium
 npm.cmd run test:browser
 ```
 
-It starts its own Vite server on `127.0.0.1:4174`, intercepts API responses, and requires that port to be free. Its execution is not included in the 241-test result below.
+It starts its own Vite server on `127.0.0.1:4174`, intercepts API responses, and requires that port to be free. It contains 13 browser tests, separate from the backend test count. To keep actual demonstration sensors online during manual Network checks, run `node scripts/demo-mesh.mjs http://localhost:5075 watch` from the repository root after the mesh demo/verify; Ctrl+C stops heartbeats. See the Pillar 3 guide for the full UI check.
 
 ## Live Part 2 scenarios
 
@@ -195,6 +197,9 @@ Incident labels and diagnostic notes persist against the incident. Per-sensor at
 | Unique active incidents and connection lifecycle | `src/SmartX.Application/Operations/IncidentTracker.cs` |
 | Learned recommendations | `src/SmartX.Application/Operations/SuggestionEngine.cs` |
 | Real-time operational UI | `src/SmartX.Client/src/features/commands/CommandStreamWorkspace.jsx` |
+| Full timestamped history | `src/SmartX.Application/History/TelemetryAvlTree.cs` / `HistoricalTelemetryIndex.cs` |
+| Graph, BFS, Prim/min-heap and routes | `src/SmartX.Domain/Mesh/WeightedMeshGraph.cs`, `src/SmartX.Application/Mesh/MeshAlgorithms.cs` |
+| Network dashboard and linked diagnostics | `src/SmartX.Client/src/features/network/NetworkWorkspace.jsx` |
 
 ## API entry points
 
@@ -205,7 +210,7 @@ Incident labels and diagnostic notes persist against the incident. Per-sensor at
 | Native telemetry | `/api/telemetry/float`, `/integer`, `/boolean` |
 | Atomic mixed batches | `/api/telemetry/bulk` |
 | Full sensor history | `/api/telemetry/sensors/{sensorId}` |
-| Mesh snapshot, BFS, Prim forest/edges/cost | `/api/mesh` |
+| Mesh snapshot, BFS, Prim forest/edges/cost and optional atomic selected route | `/api/mesh`, optionally `?nodeId=...` or `?macAddress=...` |
 | Selected route by ID or MAC | `/api/mesh/route?nodeId=...` or `?macAddress=...` |
 | Development mesh failure simulation | `PUT /api/mesh/nodes/{id}/availability`, `PUT /api/mesh/links/{id}/availability`, `DELETE /api/mesh/simulation` |
 | Live MAC registry/history | `/api/live/devices`, `/api/live/devices/{macAddress}`, `/api/live/history` |
@@ -218,9 +223,12 @@ Use the OpenAPI document for full contracts. Typed telemetry must contain an exp
 
 ## Verification and submission
 
-The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; see [Testing summary](docs/part2/Testing_Summary.md). These are earlier results; current Pillar 1 checks and remaining SQL/browser checks are recorded separately in [Pillar 1 verification](docs/pillar1/Verification.md).
+Current Pillar 3 checks on **9 November 2026** passed: Release rebuild with warnings as errors, **242 backend tests, 28 client unit tests, 22 rendered integration tests, 13 Chromium browser tests**, lint and production build. An additional actual API + React smoke check with EF InMemory passed graph/route/failure/history/watcher workflows. Pillars 1/2 have user-reported SQL-backed sign-off; Pillar 3's local SQL/browser check remains pending. See [Pillar 3 verification](docs/pillar3/Verification.md). The six npm findings reported locally (four moderate, two high) remain for Pillar 4; the earlier audit-clear result below is historical.
 
-See [Demo checklist](docs/part2/Demo_Checklist.md) for the recording plan. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. The mesh API is implemented; the topology dashboard remains Pillar 3. Hardware and Docker are optional.
+
+The Windows verification reported on **8 October 2026** completed **210 backend tests, 16 frontend unit tests and 15 rendered integration tests**, with no failures or skips. Release build with warnings as errors, frontend lint and production build passed. Following dependency remediation, `npm audit` reported **0 vulnerabilities**. The frontend tests/lint/build were rerun successfully after the lockfile update. Live SQL-backed simulator modes and manual browser workflows passed; these were recorded during the earlier Part 2 verification. These are earlier Part 2 results; current pillar results and limitations are recorded in `docs/pillar1`, `docs/pillar2` and `docs/pillar3`.
+
+Use the current pillar setup guides to collect reproducible demonstration evidence. The brief requires GitHub source, an updated README, and the lecturer's requested video or presentation. Keep meaningful genuine commits; do not manufacture contribution history. The mesh API and topology dashboard are implemented; final regression, report and submission work remains. Hardware and Docker are optional.
 
 Before submission, review `git diff --check`, `git status --short` and the staged diff. Keep local `.env`, credentials, SQL database files, uploaded files, `bin`, `obj`, `node_modules` and `dist` out of source commits. Push the final reviewed changes, verify the remote commit, and record its hash alongside test evidence and the demo URL. The current test results are not yet tied to a supplied final commit hash.
 
@@ -234,3 +242,5 @@ Before submission, review `git diff --check`, `git status --short` and the stage
 - If a command is disabled, confirm Actuator category, **On or off** value type, a valid Boolean reading, and current gateway heartbeats. A recorded reading alone does not keep a device connected indefinitely.
 - If the API is unavailable, navigation remains usable; restart it and use Retry. Confirm the API URL, client `.env` and exact CORS origin.
 - The original `Send-DemoTelemetry.ps1` predates gateway-contact health. Old recorded timestamps alone do not create Stale status; use the lifecycle scenario or stop heartbeats to demonstrate timeouts.
+
+Network troubleshooting: retain the mesh watcher during demonstrations; expired contacts correctly make nodes unavailable. Extra registered devices without declared links remain isolated and can make the overall network Degraded. Clearing simulated failures only clears routing overrides. To select a route, rebuild both API and client and use the same configured subnet. The diagram is schematic and its history panel displays the current page, not the entire database at once.

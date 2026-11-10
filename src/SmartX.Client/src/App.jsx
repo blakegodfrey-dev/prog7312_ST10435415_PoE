@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "./api/apiClient";
 import { SensorDirectory } from "./features/sensors/SensorDirectory";
 import { CommandStreamWorkspace } from "./features/commands/CommandStreamWorkspace.jsx";
+import { NetworkWorkspace } from "./features/network/NetworkWorkspace.jsx";
 import { ModuleNavigation } from "./components/ModuleNavigation.jsx";
 import { WorkspaceStateProvider } from "./state/WorkspaceStateProvider.jsx";
 import { useWorkspaceState } from "./state/useWorkspaceState.js";
@@ -41,6 +42,7 @@ function SmartXApplication() {
         <SensorDirectory onBack={() => setActiveView("startup")} />
       )}
       {activeView === "commands" && <CommandStreamWorkspace />}
+      {activeView === "network" && <NetworkWorkspace />}
       {activeView === "startup" && (
         <main className="app-shell">
           <section className="hero">
@@ -84,15 +86,15 @@ function SmartXApplication() {
               </button>
             </article>
 
-            <article className="pillar-card disabled-card">
-              <span className="status-badge disabled-badge">Final PoE</span>
+            <article className="pillar-card active-card">
+              <span className="status-badge">Final PoE</span>
               <h2>Network Topology and Mesh Routing</h2>
               <p>
-                Mesh visualisation and routing management will be implemented in
-                the final PoE.
+                Inspect mesh health, trace gateway routes and investigate
+                linked sensor telemetry.
               </p>
-              <button type="button" disabled>
-                Coming in Final PoE
+              <button type="button" className="primary-button" onClick={() => setActiveView("network")}>
+                Open Network Topology
               </button>
             </article>
           </section>

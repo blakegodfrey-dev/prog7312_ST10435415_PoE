@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
+import { meshFixture } from '../fixtures/meshFixture.mjs';
 
 const clientRoot = fileURLToPath(new URL('../../', import.meta.url));
 const baseUrl = 'http://127.0.0.1:4174';
@@ -32,6 +33,7 @@ before(async () => {
   browser = await chromium.launch({
     headless: true,
     ...(process.env.SMARTX_CHROMIUM_EXECUTABLE ? { executablePath: process.env.SMARTX_CHROMIUM_EXECUTABLE } : {}),
+    ...(process.env.SMARTX_CHROMIUM_ARGS ? { args: JSON.parse(process.env.SMARTX_CHROMIUM_ARGS) } : {}),
   });
 });
 
@@ -58,6 +60,7 @@ async function fixture(t, options = {}) {
   const requests = [];
   const registered = [];
   const attachments = [];
+  const meshFailures = { nodes: new Set(), links: new Set() };
   let navigations = 0;
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations++; });
@@ -83,6 +86,18 @@ async function fixture(t, options = {}) {
       return;
     }
     const json = async (value, status = 200) => fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) });
+    if (path.startsWith('/api/mesh')) {
+      if (request.method() === 'DELETE') { meshFailures.nodes.clear(); meshFailures.links.clear(); }
+      const mutation = /^\/api\/mesh\/(nodes|links)\/([^/]+)\/availability$/.exec(path);
+      if (mutation) {
+        if (request.postDataJSON().isAvailable) meshFailures[mutation[1]].delete(mutation[2]);
+        else meshFailures[mutation[1]].add(mutation[2]);
+      }
+      const selected = url.searchParams.get('nodeId') ??
+        (url.searchParams.get('macAddress')?.toLowerCase() === sensors[0].macAddress.toLowerCase() ? sensors[0].id : null);
+      return json(meshFixture({ sensorId: sensors[0].id, sensorName: sensors[0].friendlyName, sensorMac: sensors[0].macAddress,
+        powerId: sensors[2].id, selectedId: selected, failedNodes: [...meshFailures.nodes], failedLinks: [...meshFailures.links] }));
+    }
     if (path === '/api/operations/dashboard') return json({ devices: [], activeIncidents: [], events: [], processing: {}, undoCount: 0, commands: [], history: [], suggestions: [], recentCapacity: 2000 });
     if (path === '/api/health') return json({ status: 'Healthy' });
     if (path === '/api/deployment-nodes') return json([location]);
@@ -149,9 +164,13 @@ async function value(locator, expected) {
   assert.equal(await locator.inputValue(), expected);
 }
 
-test('Home enables both active pillars while topology stays visibly disabled', async (t) => {
+test('Home enables all three modules and network navigation keeps one document', async (t) => {
   const { page, navigationCount } = await fixture(t);
-  assert.equal(await page.getByRole('button', { name: 'Coming in Final PoE' }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Open Network Topology' }).isDisabled(), false);
+  await page.getByRole('button', { name: 'Open Network Topology' }).click();
+  await page.getByRole('group', { name: 'Wireless mesh topology', exact: true }).waitFor();
+  assert.equal(await nav(page, 'Network').getAttribute('aria-current'), 'page');
+  await nav(page, 'Home').click();
   await page.getByRole('button', { name: 'Open Command Stream' }).click();
   await page.getByRole('heading', { name: 'Real-Time Command Stream and History', exact: true }).waitFor();
   assert.equal(await nav(page, 'Command Stream').getAttribute('aria-current'), 'page');
@@ -161,6 +180,69 @@ test('Home enables both active pillars while topology stays visibly disabled', a
   await page.getByRole('button', { name: 'Open Telemetry' }).click();
   await page.getByRole('heading', { name: 'Sensor directory' }).waitFor();
   assert.equal(navigationCount(), 1, 'Module changes must not reload the document');
+});
+
+test('Network graph keyboard selection, real edge highlights and failure controls recover', async (t) => {
+  const { page } = await fixture(t);
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await nav(page, 'Network').click();
+  const powerNode = page.locator('[data-node-id="sensor-power"]');
+  await powerNode.waitFor(); await powerNode.focus(); await page.keyboard.press('Enter');
+  await page.locator('.network-route').filter({ hasText: '2 hops' }).waitFor();
+  assert.equal(await page.locator('.mesh-edge.in-route').count(), 2);
+  await page.locator('[data-link-id="ab"]').focus(); await page.keyboard.press('Space');
+  await page.getByRole('button', { name: 'Fail selected link', exact: true }).click();
+  await page.locator('[data-link-id="gb"].in-route').waitFor();
+  assert.equal(await page.locator('[data-link-id="ab"].in-route').count(), 0);
+  await page.getByRole('button', { name: 'Clear simulated failures' }).click();
+  await page.locator('[data-link-id="ab"].in-route').waitFor();
+  await page.locator('[data-node-id="gw"]').click();
+  await page.getByRole('button', { name: 'Fail selected node', exact: true }).click();
+  await page.locator('.network-route').filter({ hasText: 'Gateway unavailable' }).waitFor();
+  assert.equal(await page.locator('.mesh-edge.in-route').count(), 0);
+  await page.getByRole('button', { name: 'Clear simulated failures' }).click();
+  await page.locator('.network-route').filter({ hasText: '0 hops' }).waitFor();
+  await powerNode.click(); await page.locator('.network-route').filter({ hasText: '2 hops' }).waitFor();
+  await page.evaluate(() => scrollTo(0, 0));
+  if (process.env.SMARTX_NETWORK_DESKTOP_PNG) await page.screenshot({ path: process.env.SMARTX_NETWORK_DESKTOP_PNG });
+});
+
+test('Network MAC lookup and shared SAST history survive all modules', async (t) => {
+  const { page, requests, navigationCount } = await fixture(t);
+  await nav(page, 'Network').click();
+  await page.getByLabel('Search nodes', { exact: true }).fill('a4:cf:12:8b:40:01');
+  await page.getByRole('button', { name: 'Find exact MAC / ID' }).click();
+  await page.locator('.network-route').waitFor();
+  await page.getByLabel('From (SAST)', { exact: true }).fill('2026-11-08T14:00');
+  await page.getByLabel('To (SAST)', { exact: true }).fill('2026-11-08T16:00');
+  await page.getByLabel('Reading status', { exact: true }).selectOption('invalid');
+  await page.getByRole('button', { name: 'Open in Telemetry' }).click();
+  await page.getByRole('heading', { name: 'Telemetry history', exact: true }).waitFor();
+  await value(page.getByLabel('From (SAST)', { exact: true }), '2026-11-08T14:00');
+  await page.getByRole('button', { name: 'View in Network' }).click();
+  await page.locator('.network-route').waitFor();
+  await value(page.getByLabel('Reading status', { exact: true }), 'invalid');
+  await nav(page, 'Command Stream').click(); await nav(page, 'Home').click(); await nav(page, 'Network').click();
+  await page.locator('.network-route').waitFor();
+  await value(page.getByLabel('From (SAST)', { exact: true }), '2026-11-08T14:00');
+  assert.ok(requests.some(r => r.path === '/api/mesh' && new URLSearchParams(r.query).get('macAddress') === 'a4:cf:12:8b:40:01'));
+  assert.equal(navigationCount(), 1);
+});
+
+test('Network filters and selected route stay usable on a mobile viewport', async (t) => {
+  const { page } = await fixture(t);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await nav(page, 'Network').click();
+  await page.locator('[data-node-id="sensor-ph"]').waitFor();
+  await page.getByLabel('Search nodes', { exact: true }).fill('Nutrient');
+  await page.getByRole('button', { name: /Nutrient pH.*Gateway reachable/ }).click();
+  await page.locator('.network-route').waitFor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2));
+  await page.evaluate(() => scrollTo(0, 0));
+  if (process.env.SMARTX_NETWORK_MOBILE_PNG) await page.screenshot({ path: process.env.SMARTX_NETWORK_MOBILE_PNG });
+  await nav(page, 'Home').click(); await nav(page, 'Network').click();
+  await page.locator('.network-route').waitFor();
+  await value(page.getByLabel('Search nodes', { exact: true }), 'Nutrient');
 });
 
 test('Directory filters, selected sensor, validity, page and anomaly survive a round trip', async (t) => {
@@ -286,7 +368,7 @@ test('Anomaly marker is keyboard accessible and absent bounds do not become a ze
   assert.ok(await page.getByRole('complementary', { name: 'Selected anomaly details' }).getByText('Below the configured expected range.').isVisible());
   await page.getByRole('button', { name: 'Back to sensors', exact: false }).click();
   await page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Pump Power Draw', exact: true }) }).getByRole('button').click();
-  await page.getByRole('img', { name: /^Recent telemetry trend/ }).waitFor();
+  await page.getByRole('group', { name: /^Telemetry over time/ }).waitFor();
   assert.equal(await page.locator('.chart-range-band').count(), 0);
 });
 

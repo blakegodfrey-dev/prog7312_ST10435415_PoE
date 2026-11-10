@@ -15,11 +15,23 @@ public sealed class MeshController(MeshNetworkService service, MeshSimulationSta
     IOptions<MeshNetworkOptions> configuration, ILogger<MeshController> logger) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<MeshSnapshot>> Get([FromQuery] string? subnetId = null, CancellationToken token = default)
+    public async Task<ActionResult<MeshSnapshot>> Get([FromQuery] string? subnetId = null,
+        [FromQuery] Guid? nodeId = null, [FromQuery] string? macAddress = null, CancellationToken token = default)
     {
         if (subnetId is not null && !StringComparer.Ordinal.Equals(subnetId, configuration.Value.SubnetId))
             return Invalid("subnetId", "This gateway serves the configured hydroponic subnet only.");
-        return Ok((await service.AnalyseAsync(token)).Snapshot);
+        if ((nodeId.HasValue && macAddress is not null) || nodeId == Guid.Empty)
+            return Invalid("nodeId", "Provide at most one non-empty nodeId or MAC address.");
+        string? canonical = null;
+        if (macAddress is not null && !MacAddressNormalizer.TryNormalize(macAddress, out canonical))
+            return Invalid("macAddress", "Use a colon-separated MAC address.");
+        var analysis = await service.AnalyseAsync(token);
+        if (!nodeId.HasValue && canonical is null) return Ok(analysis.Snapshot);
+        var id = nodeId ?? service.FindSensorIdByMac(canonical!);
+        if (!id.HasValue || !analysis.Graph.Vertices.ContainsKey(id.Value)) return Missing("Mesh node not found.");
+        var route = MeshAlgorithms.GatewayRoute(analysis.Graph, analysis.Snapshot.Forest,
+            id.Value, analysis.Snapshot.GatewayId, token);
+        return Ok(analysis.Snapshot with { SelectedRoute = route });
     }
 
     [HttpGet("route")]

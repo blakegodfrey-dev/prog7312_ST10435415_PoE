@@ -105,6 +105,7 @@ export function SensorDirectory({ onBack }) {
         <label>
           <span>Category</span>
           <select
+            aria-label="Category"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
@@ -120,6 +121,7 @@ export function SensorDirectory({ onBack }) {
         <label>
           <span>Location</span>
           <select
+            aria-label="Location"
             value={deploymentNodeId}
             onChange={(event) =>
               setDeploymentNodeId(event.target.value)
