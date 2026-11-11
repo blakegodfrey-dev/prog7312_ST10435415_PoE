@@ -12,7 +12,7 @@ Smart-X simulates a hydroponic facility with ESP32-style environmental sensors, 
 
 Command Stream is a **single-operator facility workspace**. Commands, command history and Undo are shared; device selection/filtering does not create a private Undo stack. Individual user accounts and per-user command authorisation are not implemented.
 
-**Verified milestone, 10 November 2026:** Pillars 1-6 are signed off. Windows checks passed **242 backend, 28 unit, 22 integration and 13 browser tests**, builds/lint and both dependency audits. Pillar 6 provides the combined report/recommendations linked below; Pillar 7 now supplies the separate feedback ledger and startup/scope refinements, with local launcher/browser acceptance and final submission records still to check. Submit the final report, separate feedback update file, functioning GitHub source/README and lecturer-directed demo or presentation together.
+**Verified milestone, 11 November 2026:** Pillars 1-6 and the Pillar 7 feedback/startup changes have passing implementation evidence. The latest Windows final run passed all 16 stages: **242 backend, 28 unit, 22 integration and 13 browser tests**, builds/lint, both dependency audits and AVL scaling. A separate **9 launcher tests** also passed: **314 cases total**, with no failures or skips. The running client shows the facility-wide notice and restored configured mesh. Final GitHub release/history/contributor records and the demo URL remain external submission checks. Submit the final report, separate feedback update file, functioning GitHub source/README and lecturer-directed demo or presentation together.
 
 ## Documentation
 
@@ -34,13 +34,13 @@ Command Stream is a **single-operator facility workspace**. Commands, command hi
 The feedback patch adds [Start-SmartX.ps1](Start-SmartX.ps1). Set your existing SQL connection in this PowerShell session first (see [API and SQL](#terminal-1---api-and-sql)), then run from the repository root:
 
 ```powershell
-.\Start-SmartX.ps1 -CheckOnly
-.\Start-SmartX.ps1
+node .\scripts\start-smartx.mjs --check
+node .\scripts\start-smartx.mjs
 ```
 
 Normal launch checks prerequisites/ports, restores/builds the API, installs locked client dependencies and starts both servers in one console. Open **http://localhost:5173** after **READY** appears. Ctrl+C stops the owned API/client; it does not stop SQL Server or an existing unrelated process. A second running instance causes a port error. The underlying .NET/Node/SQL prerequisites remain.
 
-For an unchanged prepared build/install, use `.\Start-SmartX.ps1 -SkipPrepare`. The launcher preserves connection configuration and `.env`; without an environment override it uses the existing Development **SmartXDb** configuration. Keep the **SmartXPillar1TestDb** override when retaining that demonstration. Development migrations/empty-database seeding still apply.
+The PowerShell wrapper `.\Start-SmartX.ps1` is also available when local policy permits it. The direct Node commands above avoid PowerShell script-policy changes. For an unchanged prepared build/install, use `node .\scripts\start-smartx.mjs --skip-prepare`. The launcher preserves connection configuration and `.env`; without an environment override it uses the existing Development **SmartXDb** configuration. Keep the **SmartXPillar1TestDb** override when retaining that demonstration. Development migrations/empty-database seeding still apply.
 
 [Launcher instructions and Windows acceptance checks](START_HERE_PILLAR_7.md) explain cancellation, occupied ports and setup failures. The manual terminal instructions below remain supported. Read the separate [feedback updates](Feedback_Updates.md) and [patch verification](docs/pillar7/Verification.md) for actual changes and retained limits.
 
@@ -202,13 +202,14 @@ These are excerpts from [TelemetryAvlTree](src/SmartX.Application/History/Teleme
 
 ## Verified results and performance
 
-Latest complete supplied Windows run: **10 November 2026**, evidence folder `artifacts/pillar4-checks/2026-11-10T09-22-34-942Z-27616/`.
+Latest complete supplied Windows run: **11 November 2026**, evidence folder `artifacts/pillar4-checks/2026-11-11T07-16-32-078Z-5320/`. The separate launcher suite also passed; [current feedback verification](docs/pillar7/Verification.md) records the acceptance and earlier troubleshooting.
 
 | Check | Observed result |
 | --- | --- |
 | Release rebuild, warnings as errors; lint; production build | Passed; Release build reported zero warnings/errors. |
 | Backend / unit / rendered integration / browser tests | **242 / 28 / 22 / 13 passed**, no failures/skips. |
-| Full npm audit / transitive NuGet audit | **Zero known findings**, dated 10 November 2026. |
+| Separate launcher lifecycle tests | **9 passed**, no failures/skips; 314 cases total across these suites. |
+| Full npm audit / transitive NuGet audit | **Zero known findings**, dated 11 November 2026. |
 | Live SQL operational modes | Normal, priority, lifecycle with the real 90-second threshold, and learning passed. |
 | Retained Node A history | **10,007 indexed readings**, five exact matches, AVL height **16**, **41 visits**. |
 | Configured mesh component | Twelve sensors plus gateway; minimum tree cost **1.002 simulated mJ**. Heap **18 enqueues / 18 dequeues / maximum frontier 7**; failure/recovery checks passed. |
@@ -217,11 +218,11 @@ Latest laptop algorithm measurements, transcribed from the same final-run output
 
 | Readings | Height | Matches | Visits | Median AVL query µs | Mean linear count scan µs |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 10,000 | 14 | 121 | 157 | 4.300 | 91.287 |
-| 50,000 | 16 | 121 | 161 | 5.300 | 575.877 |
-| 100,000 | 17 | 121 | 167 | 6.400 | 984.507 |
+| 10,000 | 14 | 121 | 157 | 3.800 | 89.821 |
+| 50,000 | 16 | 121 | 161 | 5.800 | 554.009 |
+| 100,000 | 17 | 121 | 167 | 7.000 | 980.631 |
 
-Raw [Windows CSV](docs/pillar4/Benchmarks_Windows.csv), [measurement method and provenance](docs/Verification_Summary.md), and [benchmark executable](tools/SmartX.HistoryBenchmarks/Program.cs). Sorted inserts deliberately exercise balancing. A tenfold history increase raises observed visits from 157 to 167 for the same 121 matches; height grows from 14 to 17. Visits can include repeated visits made by boundary/page traversals. Timings exclude SQL, HTTP, hydration and rendering. Query timing is a warm median; the linear comparison only counts matches and uses a mean, so this is illustrative algorithm scaling, not an application-wide speedup claim. JIT/GC/CPU conditions affect times.
+The earlier **10 November** [Windows CSV](docs/pillar4/Benchmarks_Windows.csv) is retained as historical evidence; the table above transcribes the **11 November** run. See [measurement method and provenance](docs/Verification_Summary.md), and [benchmark executable](tools/SmartX.HistoryBenchmarks/Program.cs). Sorted inserts deliberately exercise balancing. A tenfold history increase raises observed visits from 157 to 167 for the same 121 matches; height grows from 14 to 17. Visits can include repeated visits made by boundary/page traversals. Timings exclude SQL, HTTP, hydration and rendering. Query timing is a warm median; the linear comparison only counts matches and uses a mean, so this is illustrative algorithm scaling, not an application-wide speedup claim. JIT/GC/CPU conditions affect times.
 
 ## API entry points
 
