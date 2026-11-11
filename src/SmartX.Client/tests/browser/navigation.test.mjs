@@ -174,7 +174,7 @@ test('Home enables all three modules and network navigation keeps one document',
   await page.getByRole('button', { name: 'Open Command Stream' }).click();
   await page.getByRole('heading', { name: 'Real-Time Command Stream and History', exact: true }).waitFor();
   assert.equal(await nav(page, 'Command Stream').getAttribute('aria-current'), 'page');
-  assert.equal(await page.getByRole('button', { name: 'Undo latest successful command' }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Undo latest successful facility command' }).isDisabled(), true);
   assert.equal(await page.locator('.command-shell-panel').count(), 7);
   await nav(page, 'Home').click();
   await page.getByRole('button', { name: 'Open Telemetry' }).click();

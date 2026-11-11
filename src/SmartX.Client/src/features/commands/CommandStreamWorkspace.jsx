@@ -66,6 +66,7 @@ export function CommandStreamWorkspace() {
   return <main className="app-shell sensor-workspace command-workspace">
     <header className="workspace-header"><div><p className="eyebrow">SMART HYDROPONIC FACILITY</p>
       <h1>Real-Time Command Stream and History</h1><p className="hero-copy">Monitor gateway activity, investigate incidents and control simulated ESP32 actuators.</p></div></header>
+    <p className="command-phase-notice">Single-operator workspace. Commands, command history and Undo are shared across the facility. Individual user accounts are not configured.</p>
     <p role="status">{snapshot ? `Last refreshed ${updatedAt?.toLocaleTimeString()}` : 'Loading operational data…'}</p>
     {error && <div role="alert" className="command-phase-notice">{error} {snapshot && 'Displayed data may be stale.'} <button type="button" onClick={() => setRefresh(n => n + 1)}>Retry</button></div>}
     {commandFeedback && <p role="status" className="command-phase-notice">{commandFeedback}</p>}
@@ -100,11 +101,12 @@ export function CommandStreamWorkspace() {
         <details><summary>Recent incident recovery events</summary>{snapshot?.events.filter(i => i.resolvedAtUtc).map(i => <p key={i.id}>{byId.get(i.deviceId)?.friendlyName}: {i.type} recovered at {stamp(i.resolvedAtUtc)}</p>)}</details>
       </section>
       <section className="command-shell-panel" aria-labelledby="processing-status-title"><h2 id="processing-status-title">Processing status</h2>
-        {snapshot ? <dl className="operation-counts">{Object.entries({ 'Normal FIFO work items': snapshot.processing.normalCount, 'Priority work items': snapshot.processing.priorityCount, 'Queued readings / heartbeats': snapshot.processing.pendingReadings, Worker: snapshot.processing.workerState, 'Committed work items': snapshot.processing.completed, 'Failed work items': snapshot.processing.failed, 'Rejected work items': snapshot.processing.rejected, Devices: devices.length, 'Active incidents': incidents.length, 'Available Undo entries': snapshot.undoCount }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <p>Waiting for processing status.</p>}
+        {snapshot ? <dl className="operation-counts">{Object.entries({ 'Normal FIFO work items': snapshot.processing.normalCount, 'Priority work items': snapshot.processing.priorityCount, 'Queued readings / heartbeats': snapshot.processing.pendingReadings, Worker: snapshot.processing.workerState, 'Committed work items': snapshot.processing.completed, 'Failed work items': snapshot.processing.failed, 'Rejected work items': snapshot.processing.rejected, Devices: devices.length, 'Active incidents': incidents.length, 'Facility-wide Undo entries': snapshot.undoCount }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <p>Waiting for processing status.</p>}
         <p>Critical packets run before waiting ordinary packets. An in-flight write completes first.</p>
       </section>
-      <section className="command-shell-panel" aria-labelledby="command-history-title"><h2 id="command-history-title">Command history</h2>
-        <button className="secondary-button" type="button" disabled={!snapshot?.undoCount || commandPending || !!error} onClick={() => act(operationsApi.undo)}>{commandPending ? 'Awaiting acknowledgement…' : 'Undo latest successful command'}</button>
+      <section className="command-shell-panel" aria-labelledby="command-history-title"><h2 id="command-history-title">Facility command history</h2>
+        <p id="facility-undo-scope">Undo applies to the latest successful command across all devices, regardless of the selected device or filter.</p>
+        <button className="secondary-button" type="button" aria-describedby="facility-undo-scope" disabled={!snapshot?.undoCount || commandPending || !!error} onClick={() => act(operationsApi.undo)}>{commandPending ? 'Awaiting acknowledgement…' : 'Undo latest successful facility command'}</button>
         {!snapshot?.commands.length && <p>No command attempts yet.</p>}{snapshot?.commands.map(c => <article key={c.id}><p><strong>{byId.get(c.sensorId)?.friendlyName}</strong> {c.isUndo ? 'Undo' : 'Set'} {c.desiredState ? 'On' : 'Off'} · {c.successful ? 'Success' : 'Failed'} {c.undone ? '· Undone' : ''}</p><p>{stamp(c.atUtc)} · {c.message}</p></article>)}
       </section>
       <section className="command-shell-panel operation-history" aria-labelledby="command-telemetry-history-title"><h2 id="command-telemetry-history-title">Telemetry history</h2>

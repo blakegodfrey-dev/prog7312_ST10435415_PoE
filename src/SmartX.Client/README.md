@@ -29,3 +29,9 @@ The verified counts are **28 unit / 22 integration / 13 browser** with no failur
 Network graph edges/routes come from the mesh API. Selected sensor diagnostics reuse Telemetry state; Command Stream retains separate choices. Late/aborted reads cannot replace a newer selection; pending mutations retain feedback through navigation. Reload starts fresh workspace state. History times use explicit SAST conversion and equal recorded instants share a chart X coordinate. Positions are schematic and energy costs simulated.
 
 The demo video is **pending recording after Pillar 7 work**; no recording or URL is claimed by the client tests.
+
+## Facility operator scope
+
+Command Stream uses one shared facility command history and Undo stack. The UI explicitly labels facility-wide scope; a selected-device filter does not limit the Undo target. Individual user accounts/per-user authorisation are not implemented.
+
+From the repository root, [Start-SmartX.ps1](../../Start-SmartX.ps1) can prepare and start both servers in one console. See [the feedback patch guide](../../START_HERE_PILLAR_7.md) and [feedback ledger](../../Feedback_Updates.md).

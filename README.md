@@ -10,7 +10,9 @@ Smart-X simulates a hydroponic facility with ESP32-style environmental sensors, 
 | Real-Time Command Stream and History | Inspect live activity, FIFO/critical processing, incident labels/notes, commands, Undo and history-driven suggestions. |
 | Network Topology and Mesh Routing | View the gateway/links, find a sensor by MAC/ID, trace its tree route, simulate failures and open linked history. |
 
-**Verified milestone, 10 November 2026:** Pillars 1-4 are signed off. Windows checks passed **242 backend, 28 unit, 22 integration and 13 browser tests**, builds/lint and both dependency audits. Pillar 5 supplies the documentation below; final report/recommendations and feedback/submission preparation remain Pillars 6/7. **The demo video has not been recorded. It is planned after Pillar 7 work; its URL is pending.**
+Command Stream is a **single-operator facility workspace**. Commands, command history and Undo are shared; device selection/filtering does not create a private Undo stack. Individual user accounts and per-user command authorisation are not implemented.
+
+**Verified milestone, 10 November 2026:** Pillars 1-6 are signed off. Windows checks passed **242 backend, 28 unit, 22 integration and 13 browser tests**, builds/lint and both dependency audits. Pillar 6 provides the combined report/recommendations linked below; Pillar 7 now supplies the separate feedback ledger and startup/scope refinements, with local launcher/browser acceptance and final submission records still to check. Submit the final report, separate feedback update file, functioning GitHub source/README and lecturer-directed demo or presentation together.
 
 ## Documentation
 
@@ -20,11 +22,27 @@ Smart-X simulates a hydroponic facility with ESP32-style environmental sensors, 
 - [Verified results and performance](#verified-results-and-performance)
 - [API entry points](#api-entry-points)
 - [Troubleshooting and limits](#troubleshooting-and-limits)
+- [Combined final PoE report PDF](docs/reports/Smart-X_Final_PoE_Report.pdf) and [editable Word copy](docs/reports/Smart-X_Final_PoE_Report.docx): implementation, completion/challenges/learning, verified results and justified proposals.
 - [Implementation guide](docs/Implementation_Guide.md): architecture, exact code excerpts, complexity, concurrency and integration.
 - [Evidence map](docs/Evidence_Map.md): assessed requirements linked to code, API/UI, tests and observed results.
 - [Verification summary](docs/Verification_Summary.md): dated Windows results and benchmark provenance.
 
 ## Setup and use
+
+### Start from one console
+
+The feedback patch adds [Start-SmartX.ps1](Start-SmartX.ps1). Set your existing SQL connection in this PowerShell session first (see [API and SQL](#terminal-1---api-and-sql)), then run from the repository root:
+
+```powershell
+.\Start-SmartX.ps1 -CheckOnly
+.\Start-SmartX.ps1
+```
+
+Normal launch checks prerequisites/ports, restores/builds the API, installs locked client dependencies and starts both servers in one console. Open **http://localhost:5173** after **READY** appears. Ctrl+C stops the owned API/client; it does not stop SQL Server or an existing unrelated process. A second running instance causes a port error. The underlying .NET/Node/SQL prerequisites remain.
+
+For an unchanged prepared build/install, use `.\Start-SmartX.ps1 -SkipPrepare`. The launcher preserves connection configuration and `.env`; without an environment override it uses the existing Development **SmartXDb** configuration. Keep the **SmartXPillar1TestDb** override when retaining that demonstration. Development migrations/empty-database seeding still apply.
+
+[Launcher instructions and Windows acceptance checks](START_HERE_PILLAR_7.md) explain cancellation, occupied ports and setup failures. The manual terminal instructions below remain supported. Read the separate [feedback updates](Feedback_Updates.md) and [patch verification](docs/pillar7/Verification.md) for actual changes and retained limits.
 
 ### Prerequisites and configuration
 
@@ -79,6 +97,12 @@ Pop-Location
 Open **http://localhost:5173**. Home and the navigation expose all three workspaces. Choices survive module navigation within the current browser application; reloading creates fresh workspace choices while server records remain.
 
 ### Automated verification
+
+Launcher lifecycle checks (real controlled child servers; separate from SQL/Windows acceptance):
+
+```powershell
+node --test --test-concurrency=1 .\scripts\tests\start-smartx.test.mjs
+```
 
 Stop the API, Vite and watcher. Install the existing Playwright version's Chromium once if necessary, then run the final checks from the repository root:
 
@@ -233,4 +257,4 @@ Use the Development OpenAPI JSON for complete payloads, responses and remaining 
 | Node `DEP0190` during final checks | Observed non-blocking warning from the Windows npm launcher in `verify-final.mjs`. The supplied run completed; this documentation patch does not alter that launcher. Track it as maintenance rather than a failed application test. |
 | Deployment beyond this assignment | One API process owns caches/queues; one subnet/gateway is configured. Direct SQL writers, deletions or multiple replicas need further invalidation/coordination. Full history has O(N) memory cost. Async polling is used, not WebSockets. |
 
-The [evidence map](docs/Evidence_Map.md) separates implemented features from outstanding report, feedback and release items. The final PDF and demo video URL are still pending. Record the actual final GitHub commit and video URL when available; no contributor history, commit hash, recording or upload is inferred from test results.
+The [evidence map](docs/Evidence_Map.md) separates implementation evidence from release records. The final PDF and [feedback ledger](Feedback_Updates.md) are prepared. Include the actual final GitHub release and demo link with the submission; test results do not establish remote publication or contributor history.

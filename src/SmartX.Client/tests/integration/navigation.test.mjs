@@ -171,7 +171,7 @@ test('Home and navigation expose all three working modules', async () => {
   await click('Open Command Stream');
   assert.match(document.querySelector('h1').textContent, /Real-Time Command Stream/);
   assert.equal(document.querySelectorAll('.command-shell-panel').length, 7);
-  assert.equal(button('Undo latest successful command').disabled, true);
+  assert.equal(button('Undo latest successful facility command').disabled, true);
   await navigate('Home');
   await click('Open Telemetry');
   assert.equal(document.querySelector('h1').textContent, 'Sensor directory');
@@ -498,7 +498,7 @@ test('Operational retry recovers and cold-start data never enables unsafe contro
   override = url => url.pathname === '/api/operations/dashboard' ? response({ detail: 'Gateway unavailable' }, 503) : null;
   await navigate('Command Stream');
   await waitUntil(() => document.querySelector('[role="alert"]'));
-  assert.equal(button('Undo latest successful command').disabled, true);
+  assert.equal(button('Undo latest successful facility command').disabled, true);
   override = null; await click('Retry');
   await waitUntil(() => document.querySelector('.operation-device'));
   assert.equal(document.querySelector('[role="alert"]'), null);
@@ -520,7 +520,12 @@ test('Learned actions require approval and Undo goes through the validated API',
   await waitUntil(() => document.body.textContent.includes('Approved and committed'));
   const command = JSON.parse(requests.find(r => r.url.pathname.endsWith('/commands')).body);
   assert.equal(command.desiredState, true); assert.equal(command.sensorId, 'pump');
-  await click('Undo latest successful command');
+  // A device filter changes the displayed list, not the facility-wide Undo target.
+  await input('Search devices', 'no matching device');
+  assert.match(document.body.textContent, /Commands, command history and Undo are shared across the facility/);
+  assert.match(document.body.textContent, /regardless of the selected device or filter/);
+  assert.equal(button('Undo latest successful facility command').getAttribute('aria-describedby'), 'facility-undo-scope');
+  await click('Undo latest successful facility command');
   await waitUntil(() => document.body.textContent.includes('Previous state restored'));
   assert.equal(requests.filter(r => r.url.pathname.endsWith('/undo')).length, 1);
 });
